@@ -9,7 +9,7 @@ use minicbor::Encoder;
 macro_rules! define_enc_len {
     ($fn:ident, $ty:ty) => {
         #[no_mangle]
-        pub fn $fn(val: $ty) -> u32 {
+        pub extern "C" fn $fn(val: $ty) -> u32 {
             CborLen::cbor_len(&val) as u32
         }
     };
