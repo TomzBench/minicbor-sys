@@ -1,0 +1,11 @@
+[package]
+name = "minicbor-sys"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["staticlib", "lib"]
+
+[dependencies]
+minicbor = { git = "https://www.gitlab.com/twittner/minicbor", branch = "cbor_len", default-features = false }
+libc = { version = "0.2", default-features = false }
