@@ -18,7 +18,7 @@ macro_rules! define_enc_len {
 macro_rules! define_enc {
     ($fn:ident, $meth:ident) => {
         #[no_mangle]
-        pub fn $fn(dst: *mut u8, dstlen: u32) -> i32 {
+        pub extern "C" fn $fn(dst: *mut u8, dstlen: u32) -> i32 {
             let dstslice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
             let mut enc = Encoder::new(Cursor::new(dstslice.as_mut()));
             Encoder::$meth(&mut enc).map_or(-1, |enc| enc.writer().position() as i32)
@@ -26,7 +26,7 @@ macro_rules! define_enc {
     };
     ($fn:ident, $meth:ident, $ty:ty) => {
         #[no_mangle]
-        pub fn $fn(dst: *mut u8, dstlen: u32, val: $ty) -> i32 {
+        pub extern "C" fn $fn(dst: *mut u8, dstlen: u32, val: $ty) -> i32 {
             let dstslice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
             let mut enc = Encoder::new(Cursor::new(dstslice.as_mut()));
             Encoder::$meth(&mut enc, val.into()).map_or(-1, |enc| enc.writer().position() as i32)
