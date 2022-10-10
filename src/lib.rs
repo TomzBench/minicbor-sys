@@ -61,13 +61,13 @@ define_enc!(mcbor_enc_map, map, u32);
 //      perhaps export minicbor::data::Tag enum as repr(u8) or something
 
 #[no_mangle]
-pub fn mcbor_enc_bytes_len(src: *const u8, srclen: u32) -> u32 {
+pub extern "C" fn mcbor_enc_bytes_len(src: *const u8, srclen: u32) -> u32 {
     let slice = unsafe { core::slice::from_raw_parts(src, srclen as usize) };
     CborLen::cbor_len(slice) as u32
 }
 
 #[no_mangle]
-pub fn mcbor_enc_bytes(dst: *mut u8, dstlen: u32, src: *const u8, srclen: u32) -> i32 {
+pub extern "C" fn mcbor_enc_bytes(dst: *mut u8, dstlen: u32, src: *const u8, srclen: u32) -> i32 {
     let dstslice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
     let srcslice = unsafe { core::slice::from_raw_parts(src, srclen as usize) };
     let mut enc = Encoder::new(Cursor::new(dstslice.as_mut()));
@@ -76,14 +76,14 @@ pub fn mcbor_enc_bytes(dst: *mut u8, dstlen: u32, src: *const u8, srclen: u32) -
 }
 
 #[no_mangle]
-pub fn mcbor_enc_str_len(src: *const i8, srclen: u32) -> u32 {
+pub extern "C" fn mcbor_enc_str_len(src: *const i8, srclen: u32) -> u32 {
     let slice = unsafe { core::slice::from_raw_parts(src as *const u8, srclen as usize) };
     let s = unsafe { core::str::from_utf8_unchecked(slice) };
     CborLen::cbor_len(s) as u32
 }
 
 #[no_mangle]
-pub fn mcbor_enc_str(dst: *mut u8, dstlen: u32, src: *const i8, srclen: u32) -> i32 {
+pub extern "C" fn mcbor_enc_str(dst: *mut u8, dstlen: u32, src: *const i8, srclen: u32) -> i32 {
     let srcslice = unsafe { core::slice::from_raw_parts(src as *const u8, srclen as usize) };
     let dstslice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
     let s = unsafe { core::str::from_utf8_unchecked(srcslice) };
