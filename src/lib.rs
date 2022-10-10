@@ -76,16 +76,14 @@ pub fn mcbor_enc_bytes(dst: *mut u8, dstlen: u32, src: *const u8, srclen: u32) -
 }
 
 #[no_mangle]
-pub fn mcbor_enc_str_len(src: *const libc::c_char) -> u32 {
-    let srclen = unsafe { libc::strlen(src) };
+pub fn mcbor_enc_str_len(src: *const i8, srclen: u32) -> u32 {
     let slice = unsafe { core::slice::from_raw_parts(src as *const u8, srclen as usize) };
     let s = unsafe { core::str::from_utf8_unchecked(slice) };
     CborLen::cbor_len(s) as u32
 }
 
 #[no_mangle]
-pub fn mcbor_enc_str(dst: *mut u8, dstlen: u32, src: *const libc::c_char) -> i32 {
-    let srclen = unsafe { libc::strlen(src) };
+pub fn mcbor_enc_str(dst: *mut u8, dstlen: u32, src: *const i8, srclen: u32) -> i32 {
     let srcslice = unsafe { core::slice::from_raw_parts(src as *const u8, srclen as usize) };
     let dstslice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
     let s = unsafe { core::str::from_utf8_unchecked(srcslice) };
@@ -230,12 +228,13 @@ mod tests {
     #[test]
     fn test_mcbor_enc_str() {
         let dat = vec![b'h', b'e', b'l', b'l', b'o', b'\0'];
-        let enclen = mcbor_enc_str_len(dat.as_ptr() as *const i8);
+        let enclen = mcbor_enc_str_len(dat.as_ptr() as *const i8, (dat.len() - 1) as u32);
         let mut actual = vec![0; enclen as usize];
         let ret = mcbor_enc_str(
             actual.as_mut_ptr(),
             actual.len() as u32,
             dat.as_ptr() as *const i8,
+            (dat.len() - 1) as u32,
         );
         assert_eq!(enclen, ret as u32);
         assert_eq!("hello", decode::<&str>(actual.as_ref()).unwrap());
