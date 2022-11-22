@@ -4,7 +4,7 @@
 
 use minicbor::encode::write::Cursor;
 use minicbor::encode::CborLen;
-use minicbor::Encoder;
+use minicbor::{Decoder, Encoder};
 
 macro_rules! define_enc_len {
     ($fn:ident, $ty:ty) => {
@@ -34,6 +34,36 @@ macro_rules! define_enc {
     };
 }
 
+macro_rules! define_dec {
+    ($fn:ident, $meth:ident, $ty:ty) => {
+        #[no_mangle]
+        pub extern "C" fn $fn(dst: *mut $ty, src: *mut u8, srclen: u32) -> i32 {
+            let srcslice = unsafe { core::slice::from_raw_parts_mut(src, srclen as usize) };
+            let mut dec = Decoder::new(srcslice);
+            if let Ok(b) = Decoder::$meth(&mut dec) {
+                unsafe { *dst = b };
+                dec.position() as i32
+            } else {
+                -1
+            }
+        }
+    };
+}
+
+macro_rules! define_dec_group {
+    ( $fn:ident, $meth:ident) => {
+        pub extern "C" fn $fn(src: *mut u8, srclen: u32) -> i32 {
+            let slice = unsafe { core::slice::from_raw_parts(src as *const u8, srclen as usize) };
+            let mut decoder = Decoder::new(slice);
+            match Decoder::$meth(&mut decoder) {
+                Ok(Some(val)) => val as i32,
+                Ok(None) => 0,
+                Err(_) => -1,
+            }
+        }
+    };
+}
+
 define_enc_len!(mcbor_enc_i8_len, i8);
 define_enc_len!(mcbor_enc_u8_len, u8);
 define_enc_len!(mcbor_enc_i16_len, i16);
@@ -59,6 +89,21 @@ define_enc!(mcbor_enc_array, array, u32);
 define_enc!(mcbor_enc_map, map, u32);
 // TODO mcbor_enc_tag
 //      perhaps export minicbor::data::Tag enum as repr(u8) or something
+define_dec!(mcbor_dec_i8, i8, i8);
+define_dec!(mcbor_dec_u8, u8, u8);
+define_dec!(mcbor_dec_i16, i16, i16);
+define_dec!(mcbor_dec_u16, u16, u16);
+define_dec!(mcbor_dec_i32, i32, i32);
+define_dec!(mcbor_dec_u32, u32, u32);
+define_dec!(mcbor_dec_i64, i64, i64);
+define_dec!(mcbor_dec_u64, u64, u64);
+define_dec!(mcbor_dec_null, null, ());
+define_dec!(mcbor_dec_undefined, undefined, ());
+define_dec!(mcbor_dec_simple, simple, u8);
+define_dec!(mcbor_dec_bool, bool, bool);
+define_dec!(mcbor_dec_char, char, char);
+define_dec_group!(mcbor_dec_array, array);
+define_dec_group!(mcbor_dec_map, map);
 
 #[no_mangle]
 pub extern "C" fn mcbor_enc_bytes_len(src: *const u8, srclen: u32) -> u32 {
@@ -89,6 +134,40 @@ pub extern "C" fn mcbor_enc_str(dst: *mut u8, dstlen: u32, src: *const i8, srcle
     let s = unsafe { core::str::from_utf8_unchecked(srcslice) };
     let mut enc = Encoder::new(Cursor::new(dstslice.as_mut()));
     enc.str(s).map_or(-1, |enc| enc.writer().position() as i32)
+}
+
+#[no_mangle]
+pub extern "C" fn mcbor_dec_bytes(dst: *mut u8, dstlen: u32, src: *const u8, srclen: u32) -> i32 {
+    let dstslice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
+    let srcslice = unsafe { core::slice::from_raw_parts(src, srclen as usize) };
+    let mut decoder = Decoder::new(srcslice);
+    if let Ok(bytes) = decoder.bytes() {
+        if bytes.len() <= dstslice.len() {
+            dstslice[0..bytes.len()].copy_from_slice(bytes);
+            bytes.len() as i32
+        } else {
+            -1
+        }
+    } else {
+        -1
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn mcbor_dec_str(dst: *mut u8, dstlen: u32, src: *const u8, srclen: u32) -> i32 {
+    let dstslice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
+    let srcslice = unsafe { core::slice::from_raw_parts(src, srclen as usize) };
+    let mut decoder = Decoder::new(srcslice);
+    if let Ok(bytes) = decoder.str() {
+        if bytes.len() <= dstslice.len() {
+            dstslice[0..bytes.len()].copy_from_slice(bytes.as_bytes());
+            bytes.len() as i32
+        } else {
+            -1
+        }
+    } else {
+        -1
+    }
 }
 
 #[cfg(test)]
@@ -265,6 +344,65 @@ mod tests {
         assert!(decoder.map().is_ok());
         assert_eq!(4, decoder.u8().unwrap());
         assert_eq!(2, decoder.u8().unwrap());
+    }
+
+    #[test]
+    fn test_mcbor_dec_bool() {
+        let mut buf = [0; 1];
+        let mut uut = false;
+        let ret = mcbor_enc_bool(buf.as_mut_ptr(), 1, true);
+        assert_eq!(1, ret);
+        let ret = mcbor_dec_bool(&mut uut as *mut bool, buf.as_mut_ptr(), 1);
+        assert_eq!(1, ret);
+        assert_eq!(true, uut);
+
+        let ret = mcbor_enc_bool(buf.as_mut_ptr(), 1, false);
+        assert_eq!(1, ret);
+        let ret = mcbor_dec_bool(&mut uut as *mut bool, buf.as_mut_ptr(), 1);
+        assert_eq!(1, ret);
+        assert_eq!(false, uut);
+    }
+
+    #[test]
+    fn test_mcbor_dec_map() {
+        let mut buf = [0; 1];
+        let ret = mcbor_enc_map(buf.as_mut_ptr(), 1, 2);
+        assert_eq!(1, ret);
+
+        let ret = mcbor_dec_map(buf.as_mut_ptr(), 1);
+        assert_eq!(2, ret);
+    }
+
+    #[test]
+    fn test_mcbor_dec_array() {
+        let mut buf = [0; 1];
+        let ret = mcbor_enc_array(buf.as_mut_ptr(), 1, 2);
+        assert_eq!(1, ret);
+
+        let ret = mcbor_dec_array(buf.as_mut_ptr(), 1);
+        assert_eq!(2, ret);
+    }
+
+    #[test]
+    fn test_mcbor_dec_bytes() {
+        let mut actual = [0; 3];
+        let mut data = [0; 4];
+        let mut encoder = Encoder::new(data.as_mut());
+        encoder.bytes(&[0, 1, 2]).unwrap();
+        let ret = mcbor_dec_bytes(actual.as_mut_ptr(), 3, data.as_ptr(), 4);
+        assert_eq!(3, ret);
+        assert_eq!([0, 1, 2], actual);
+    }
+
+    #[test]
+    fn test_mcbor_dec_str() {
+        let mut actual = [0; 3];
+        let mut data = [0; 4];
+        let mut encoder = Encoder::new(data.as_mut());
+        encoder.str("hii").unwrap();
+        let ret = mcbor_dec_str(actual.as_mut_ptr(), 3, data.as_ptr(), 4);
+        assert_eq!(3, ret);
+        assert_eq!("hii".as_bytes(), actual);
     }
 }
 
