@@ -52,6 +52,7 @@ macro_rules! define_dec {
 
 macro_rules! define_dec_group {
     ( $fn:ident, $meth:ident) => {
+        #[no_mangle]
         pub extern "C" fn $fn(src: *mut u8, srclen: u32) -> i32 {
             let slice = unsafe { core::slice::from_raw_parts(src as *const u8, srclen as usize) };
             let mut decoder = Decoder::new(slice);
