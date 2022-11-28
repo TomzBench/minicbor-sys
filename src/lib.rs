@@ -10,7 +10,7 @@ macro_rules! define_enc_len {
     ($fn:ident, $ty:ty) => {
         #[no_mangle]
         pub extern "C" fn $fn(val: $ty) -> u32 {
-            CborLen::<()>::cbor_len(&val) as u32
+            CborLen::cbor_len(&val, &mut ()) as u32
         }
     };
 }
@@ -109,7 +109,7 @@ define_dec_group!(mcbor_dec_map, map);
 #[no_mangle]
 pub extern "C" fn mcbor_enc_bytes_len(src: *const u8, srclen: u32) -> u32 {
     let slice = unsafe { core::slice::from_raw_parts(src, srclen as usize) };
-    CborLen::<()>::cbor_len(slice) as u32
+    CborLen::cbor_len(slice, &mut ()) as u32
 }
 
 #[no_mangle]
@@ -125,7 +125,7 @@ pub extern "C" fn mcbor_enc_bytes(dst: *mut u8, dstlen: u32, src: *const u8, src
 pub extern "C" fn mcbor_enc_str_len(src: *const i8, srclen: u32) -> u32 {
     let slice = unsafe { core::slice::from_raw_parts(src as *const u8, srclen as usize) };
     let s = unsafe { core::str::from_utf8_unchecked(slice) };
-    CborLen::<()>::cbor_len(s) as u32
+    CborLen::cbor_len(s, &mut ()) as u32
 }
 
 #[no_mangle]
