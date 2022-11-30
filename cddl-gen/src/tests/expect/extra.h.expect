@@ -1,0 +1,27 @@
+#ifndef ATX_EXTRA_H 
+#define ATX_EXTRA_H 
+
+#include "atx.h" 
+
+#ifdef __cplusplus 
+extern "C" { 
+#endif 
+
+
+static inline int 
+foo_send_network(struct atx_api_request* req, struct foo_network* data) 
+{ 
+	return atx_send_cbor(req, FOO_NETWORK, data); 
+} 
+
+static inline int 
+foo_send_thing(struct atx_api_request* req, struct foo_thing* data) 
+{ 
+	return atx_send_cbor(req, FOO_THING, data); 
+} 
+
+
+#ifdef __cplusplus 
+} 
+#endif 
+#endif 

@@ -1,0 +1,62 @@
+{%- import "macros.tmpl" as macros -%}
+{{ macros::rust_prelude(options=options) }}
+
+{%- for key, node in cddl | nodes(value="literal") -%}
+    {{ macros::rust_literal(name=key, data=node.meta, options=options) }}
+{%- endfor -%}
+
+{%- for key, node in cddl | nodes(value="struct") -%}
+    {{ macros::rust_struct_attr(options=options) }}
+    {{ macros::rust_struct(name=key, data=node.meta, options=options) }}
+    {%- if not options.bindings -%}
+        {{ macros::rust_default_impl(name=key, data=node.meta, options=options) }}
+    {%- endif -%}
+{%- endfor -%}
+
+{%- if options.bindings -%}
+{%- set cbor_key = "CborKey" | rename(case="enum", options=options) -%}
+
+#[repr(C)]
+pub enum {{ "CborKey" | rename(case="enum", options=options) }} {
+{%- for key, node in cddl | nodes(value="struct") -%}
+    {{ key | rename(case="enum", options=options) }} = {{ loop.index0 }},
+{%- endfor -%}
+}
+
+#[no_mangle]
+pub extern "C" fn mcbor_encode(dst: *mut u8, dstlen: u32, key: {{cbor_key}}, ptr: *const core::ffi::c_void) -> i32 {
+    use ATX_CBOR_KEY::*;
+    let mut slice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
+    let mut enc = Encoder::new(Cursor::new(slice));
+    unsafe {
+        match key {
+            {%- for key, node in cddl | nodes(value="struct") -%}
+                {{ macros::match_encode(name=key, enc="enc", ptr="ptr", options=options) }},
+            {%- endfor -%}
+        }
+        .map_or(-1, |enc| enc.writer().position() as i32)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn mcbor_len(key: {{cbor_key}}, ptr: *const core::ffi::c_void) -> u32 {
+    use ATX_CBOR_KEY::*;
+    unsafe {
+        match key {
+            {%- for key, node in cddl | nodes(value="struct") -%}
+                {{ macros::match_cbor_len(name=key, enc="enc", ptr="ptr", options=options) }},
+            {%- endfor -%}
+        }
+    }
+}
+
+
+{%- endif -%}
+
+{{ macros::traits(options=options) }}
+
+{%- for key, node in cddl -%}
+    {%- if node.type == "struct" and options.bindings -%}
+        {{ macros::rust_ffi_impls(name=key, data=node.meta, options=options) }}
+    {%- endif -%}
+{%- endfor -%}

@@ -1,0 +1,36 @@
+colors = {
+	car: u8,
+	boat: u8,
+}
+
+ip = (
+	address: tstr .size 16,
+	port: u16,
+	dhcp: is-dhcp,
+)
+
+local = {
+	ip
+}
+
+local-nested = {
+	network: local
+}
+
+mac = [ 6*6 small ]
+
+small = u8
+u8 = uint .size 1
+i8 = int .size 1
+u16 = uint .size 2
+i16 = int .size 2
+u32 = uint .size 4
+i32 = int .size 4
+u64 = uint .size 8
+i64 = int .size 8
+is-dhcp = bool
+
+lit = boop
+boop = 3
+
+bar = "bar"

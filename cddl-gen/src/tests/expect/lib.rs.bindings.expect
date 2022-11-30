@@ -1,0 +1,175 @@
+#![cfg_attr(not(test), no_std)]
+#![allow(dead_code)]
+#![allow(unused)]
+#![allow(non_camel_case_types)]
+
+pub use minicbor::encode::write::Cursor;
+pub use minicbor::{self, CborLen, Decode, Decoder, Encode, Encoder};
+pub use minicbor_sys::*;
+
+pub const FOO_A_LITERAL_CHAR: char = 'C';
+pub const FOO_A_LITERAL_THREE: u32 = 3;
+
+#[repr(C)]
+#[derive(Clone, CborLen, Encode, Decode)]
+pub struct foo_network {
+    #[n(0)]
+    pub dhcp: bool,
+    #[cbor(n(1), with = "minicbor::bytes")]
+    pub ip: [u8; 16],
+    #[cbor(n(2), with = "minicbor::bytes")]
+    pub sn: [u8; 16],
+    #[cbor(n(3), with = "minicbor::bytes")]
+    pub gw: [u8; 16],
+    #[cbor(n(4), with = "minicbor::bytes")]
+    pub mac: [u8; 6],
+}
+
+#[repr(C)]
+#[derive(Clone, CborLen, Encode, Decode)]
+pub struct foo_thing {
+    #[n(0)]
+    pub a: u8,
+    #[n(1)]
+    pub b: u16,
+    #[n(2)]
+    pub c: u32,
+    #[n(3)]
+    pub d: u64,
+    #[n(4)]
+    pub e: i8,
+    #[n(5)]
+    pub f: i16,
+    #[n(6)]
+    pub g: i32,
+    #[n(7)]
+    pub h: i64,
+    #[cbor(n(8), with = "minicbor::bytes")]
+    pub update: [u8; 4096],
+    #[n(9)]
+    pub net: foo_network,
+}
+
+#[repr(C)]
+pub enum FOO_CBOR_KEY {
+    FOO_NETWORK = 0,
+    FOO_THING = 1,
+}
+
+#[no_mangle]
+pub extern "C" fn mcbor_encode(dst: *mut u8, dstlen: u32, key: FOO_CBOR_KEY, ptr: *const core::ffi::c_void) -> i32 {
+    use ATX_CBOR_KEY::*;
+    let mut slice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
+    let mut enc = Encoder::new(Cursor::new(slice));
+     unsafe {
+        match key {
+            FOO_NETWORK => enc.encode(&*(ptr as *const foo_network)),
+            FOO_THING => enc.encode(&*(ptr as *const foo_thing)),
+        }
+        .map_or(-1, |enc| enc.writer().position() as i32)
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn mcbor_len(key: FOO_CBOR_KEY, ptr: *const core::ffi::c_void) -> u32 {
+    use ATX_CBOR_KEY::*;
+     unsafe {
+        match key {
+            FOO_NETWORK => <foo_network as CborLen<()>>::cbor_len(&*(ptr as *const foo_network), &mut ()) as u32,
+            FOO_THING => <foo_thing as CborLen<()>>::cbor_len(&*(ptr as *const foo_thing), &mut ()) as u32,
+        }
+    }
+}
+
+
+struct ErrMsg<'a>(&'a mut [u8]);
+impl<'a> core::fmt::Write for ErrMsg<'a> {
+    fn write_str(&mut self, msg: &str) -> core::fmt::Result {
+        let min = core::cmp::min(self.0.len() - 1, msg.len());
+        self.0[0..min].copy_from_slice(&msg[0..min].as_bytes());
+        self.0[min..].fill(0);
+        Ok(())
+    }
+}
+
+#[inline]
+fn decode_error_msg(e: minicbor::decode::Error, errmsg: *mut u8, errmsg_len: &mut u32) -> i32 {
+    let mut err = unsafe { core::slice::from_raw_parts_mut(errmsg, *errmsg_len as usize) };
+    core::fmt::write(&mut ErrMsg(err), format_args!("{}", e));
+    *errmsg_len = err.len() as u32;
+    -1
+}
+
+#[no_mangle]
+pub extern "C" fn foo_encode_network(dst: *mut u8, dstlen: u32, src: &foo_network) -> i32 {
+    mcbor_encode(dst, dstlen, FOO_CBOR_KEY::FOO_NETWORK, src as *const foo_network as *const core::ffi::c_void)
+}
+
+#[no_mangle]
+pub extern "C" fn foo_decode_network(dst: &mut foo_network, bytes: *const u8, len: u32) -> i32 {
+    let slice = unsafe { core::slice::from_raw_parts(bytes, len as usize) };
+    let mut decoder = Decoder::new(slice);
+    if let Ok(t) = decoder.decode::<foo_network>() {
+        *dst = t;
+        decoder.position() as i32
+    } else {
+        -1
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn foo_decode_network_w_errmsg(
+    dst: &mut foo_network,
+    errmsg: Option<&mut u8>,
+    errmsg_len: Option<&mut u32>,
+    bytes: *const u8,
+    len: u32,
+) -> i32 {
+    let slice = unsafe { core::slice::from_raw_parts(bytes, len as usize) };
+    let mut decoder = Decoder::new(slice);
+    match (decoder.decode::<foo_network>(), errmsg, errmsg_len) {
+        (Err(e), Some(msg), Some(len)) => decode_error_msg(e, msg, len),
+        (Err(_), _, _) => -1,
+        (Ok(t), _, _) => {
+            *dst = t;
+            decoder.position() as i32
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn foo_encode_thing(dst: *mut u8, dstlen: u32, src: &foo_thing) -> i32 {
+    mcbor_encode(dst, dstlen, FOO_CBOR_KEY::FOO_THING, src as *const foo_thing as *const core::ffi::c_void)
+}
+
+#[no_mangle]
+pub extern "C" fn foo_decode_thing(dst: &mut foo_thing, bytes: *const u8, len: u32) -> i32 {
+    let slice = unsafe { core::slice::from_raw_parts(bytes, len as usize) };
+    let mut decoder = Decoder::new(slice);
+    if let Ok(t) = decoder.decode::<foo_thing>() {
+        *dst = t;
+        decoder.position() as i32
+    } else {
+        -1
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn foo_decode_thing_w_errmsg(
+    dst: &mut foo_thing,
+    errmsg: Option<&mut u8>,
+    errmsg_len: Option<&mut u32>,
+    bytes: *const u8,
+    len: u32,
+) -> i32 {
+    let slice = unsafe { core::slice::from_raw_parts(bytes, len as usize) };
+    let mut decoder = Decoder::new(slice);
+    match (decoder.decode::<foo_thing>(), errmsg, errmsg_len) {
+        (Err(e), Some(msg), Some(len)) => decode_error_msg(e, msg, len),
+        (Err(_), _, _) => -1,
+        (Ok(t), _, _) => {
+            *dst = t;
+            decoder.position() as i32
+        }
+    }
+}

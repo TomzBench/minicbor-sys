@@ -1,0 +1,36 @@
+thing = {
+	ints,
+	update: [ 4096*4096 u8 ],
+	net: network
+}
+
+ints = (
+	a: u8,
+	b: u16,
+	c: u32,
+	d: u64,
+	e: i8,
+	f: i16,
+	g: i32,
+	h: i64,
+)
+
+network = {
+	dhcp: bool,
+	ip: ip-addr,
+	sn: ip-addr,
+	gw: ip-addr,
+	mac: [ 6*6 u8 ],
+}
+
+ip-addr = tstr .size 16
+u8 = uint .size 1
+u16 = uint .size 2
+u32 = uint .size 4
+u64 = uint .size 8
+i8 = int .size 1
+i16 = int .size 2
+i32 = int .size 4
+i64 = int .size 8
+a-literal-three = 3
+a-literal-char = "C"

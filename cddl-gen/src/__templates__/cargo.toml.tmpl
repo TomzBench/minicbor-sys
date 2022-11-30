@@ -1,0 +1,26 @@
+[package]
+name = "{{ name }}"
+description = "Altronix Ser/De data types from device atx-zdk"
+license = "MIT"
+{% if options.version %}
+version = "{{ options.version }}"
+{% else %}
+version = "0.1.0"
+{% endif %}
+edition = "2021"
+
+{% if options.bindings -%}
+[lib]
+crate-type = ["staticlib", "lib"]
+{% endif %}
+
+[dependencies]
+{% if not options.bindings %}
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde-big-array = "0.4"
+minicbor = { version = "0.18", git = "https://www.gitlab.com/twittner/minicbor", branch = "cbor_len", features = ["derive", "std", "alloc"] }
+{% else -%}
+minicbor = { version = "0.18", git = "https://www.gitlab.com/twittner/minicbor", branch = "cbor_len", default-features = false, features = ["derive"] }
+minicbor-sys = { version = "0.0.7", git = "https://www.github.com/tomzbench/minicbor-sys" }
+{% endif %}

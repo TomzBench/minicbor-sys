@@ -1,0 +1,132 @@
+pub use minicbor::{self, CborLen, Encode, Decode};
+use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
+
+pub const A_LITERAL_CHAR: char = 'C';
+pub const A_LITERAL_THREE: u32 = 3;
+
+#[derive(Clone, CborLen, Debug, Serialize, Deserialize, Encode, Decode)]
+pub struct Network {
+    #[n(0)]
+    pub dhcp: bool,
+    #[cbor(n(1), with = "minicbor::bytes")]
+    #[serde(serialize_with = "ser_bytes_as_str")]
+    #[serde(deserialize_with = "de_str_as_bytes")]
+    pub ip: [u8; 16],
+    #[cbor(n(2), with = "minicbor::bytes")]
+    #[serde(serialize_with = "ser_bytes_as_str")]
+    #[serde(deserialize_with = "de_str_as_bytes")]
+    pub sn: [u8; 16],
+    #[cbor(n(3), with = "minicbor::bytes")]
+    #[serde(serialize_with = "ser_bytes_as_str")]
+    #[serde(deserialize_with = "de_str_as_bytes")]
+    pub gw: [u8; 16],
+    #[cbor(n(4), with = "minicbor::bytes")]
+    pub mac: [u8; 6],
+}
+
+impl Default for Network {
+    fn default() -> Network {
+        Network {
+            dhcp: Default::default(),
+            ip: Default::default(),
+            sn: Default::default(),
+            gw: Default::default(),
+            mac: [0; 6],
+        }
+    }
+}
+
+#[derive(Clone, CborLen, Debug, Serialize, Deserialize, Encode, Decode)]
+pub struct Thing {
+    #[n(0)]
+    pub a: u8,
+    #[n(1)]
+    pub b: u16,
+    #[n(2)]
+    pub c: u32,
+    #[n(3)]
+    pub d: u64,
+    #[n(4)]
+    pub e: i8,
+    #[n(5)]
+    pub f: i16,
+    #[n(6)]
+    pub g: i32,
+    #[n(7)]
+    pub h: i64,
+    #[cbor(n(8), with = "minicbor::bytes")]
+    #[serde(with="BigArray")]
+    pub update: [u8; 4096],
+    #[n(9)]
+    pub net: Network,
+}
+
+impl Default for Thing {
+    fn default() -> Thing {
+        Thing {
+            a: Default::default(),
+            b: Default::default(),
+            c: Default::default(),
+            d: Default::default(),
+            e: Default::default(),
+            f: Default::default(),
+            g: Default::default(),
+            h: Default::default(),
+            update: [0; 4096],
+            net: Default::default(),
+        }
+    }
+}
+
+pub trait Edit {
+    fn edit(&mut self, bytes: &str);
+}
+
+impl Edit for [u8] {
+    fn edit(&mut self, bytes: &str) {
+        self[0..bytes.len()].copy_from_slice(bytes.as_bytes());
+        self[bytes.len()..].fill(0);
+    }
+}
+
+pub trait FromBytes {
+    fn from_bytes(&self) -> core::result::Result<&str, core::str::Utf8Error>;
+}
+
+impl FromBytes for [u8] {
+    fn from_bytes(&self) -> core::result::Result<&str, core::str::Utf8Error> {
+        core::str::from_utf8(&self[0..]).map(|s| match s.find("\0") {
+            Some(n) => &s[0..n],
+            None => s,
+        })
+    }
+}
+
+struct StrToBytes<const N: usize> {}
+impl<'de, const N: usize> serde::de::Visitor<'de> for StrToBytes<N> {
+    type Value = [u8; N];
+    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(formatter, "a string")
+    }
+
+    fn visit_str<E>(self, s: &str) -> Result<Self::Value, E> {
+        let mut ret: [u8; N] = [0; N];
+        let min = if s.len() < N { s.len() } else { N };
+        ret[0..min].copy_from_slice(&s.as_bytes()[0..min]);
+        Ok(ret)
+    }
+}
+
+fn ser_bytes_as_str<S: serde::Serializer>(ty: &[u8], s: S) -> std::result::Result<S::Ok, S::Error> {
+    ty.from_bytes()
+        .map_err(|e| serde::ser::Error::custom(format!("{}", e)))
+        .and_then(|val| s.serialize_str(val))
+}
+
+fn de_str_as_bytes<'de, D, const N: usize>(de: D) -> std::result::Result<[u8; N], D::Error>
+where
+    D: serde::de::Deserializer<'de>,
+{
+    de.deserialize_str(StrToBytes::<N> {})
+}
