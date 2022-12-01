@@ -8,12 +8,12 @@
 {%- for key, node in cddl | nodes(value="struct") -%}
     {{ macros::rust_struct_attr(options=options) }}
     {{ macros::rust_struct(name=key, data=node.meta, options=options) }}
-    {%- if not options.bindings -%}
+    {%- if not options.language == "c" -%}
         {{ macros::rust_default_impl(name=key, data=node.meta, options=options) }}
     {%- endif -%}
 {%- endfor -%}
 
-{%- if options.bindings -%}
+{%- if options.language == "c" -%}
 {%- set cbor_key = "CborKey" | rename(case="enum", options=options) -%}
 
 #[repr(C)]
@@ -56,7 +56,7 @@ pub extern "C" fn mcbor_len(key: {{cbor_key}}, ptr: *const core::ffi::c_void) ->
 {{ macros::traits(options=options) }}
 
 {%- for key, node in cddl -%}
-    {%- if node.type == "struct" and options.bindings -%}
+    {%- if node.type == "struct" and options.language == "c" -%}
         {{ macros::rust_ffi_impls(name=key, data=node.meta, options=options) }}
     {%- endif -%}
 {%- endfor -%}

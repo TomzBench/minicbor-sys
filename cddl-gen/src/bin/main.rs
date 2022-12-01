@@ -1,4 +1,4 @@
-use cddl_gen::Options;
+use cddl_gen::{Language, Options};
 use clap::{arg, value_parser, ArgAction, Command};
 use std::error::Error;
 use std::fs;
@@ -57,7 +57,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let options = Options {
         prefix,
         version,
-        bindings,
+        language: if bindings {
+            Language::C
+        } else {
+            Language::Rust
+        },
     };
     info!("Creating CDDL project [{}]", path.display());
     let cargo = path.clone().join("Cargo.toml");

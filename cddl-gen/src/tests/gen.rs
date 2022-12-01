@@ -3,16 +3,20 @@ use crate::*;
 
 #[test]
 fn test_render_lib_full() {
+    let options = Options {
+        language: Language::Rust,
+        ..Options::default()
+    };
     let expect = read_expect("lib.rs.expect");
     let cddl = read_cddl("thing.cddl");
-    let test = render_lib(&cddl, &Options::default()).unwrap();
+    let test = render_lib(&cddl, &options).unwrap();
     expect.validate(&test);
 }
 
 #[test]
 fn test_render_lib_bindings() {
     let options = Options {
-        bindings: true,
+        language: Language::C,
         prefix: Some("foo_".into()),
         ..Options::default()
     };
@@ -24,32 +28,23 @@ fn test_render_lib_bindings() {
 
 #[test]
 fn test_render_cargo_full() {
+    let options = Options {
+        language: Language::Rust,
+        ..Options::default()
+    };
     let expect = read_expect("cargo.toml.expect");
-    let test = render_cargo("test", &Options::default()).unwrap();
+    let test = render_cargo("test", &options).unwrap();
     expect.validate(&test);
 }
 
 #[test]
 fn test_render_cargo_bindings() {
     let options = Options {
-        bindings: true,
+        language: Language::C,
         version: Some("0.3.0".into()),
         ..Options::default()
     };
     let expect = read_expect("cargo.toml.bindings.expect");
     let test = render_cargo("test", &options).unwrap();
     expect.validate(&test);
-}
-
-#[test]
-fn test_render_extra() {
-    let options = Options {
-        bindings: true,
-        prefix: Some("foo_".into()),
-        ..Options::default()
-    };
-    let expect = read_expect("extra.h.expect");
-    let cddl = read_cddl("thing.cddl");
-    let test = render_extra(&cddl, &options).unwrap();
-    expect.validate_c(&test);
 }

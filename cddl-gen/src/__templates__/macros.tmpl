@@ -1,5 +1,5 @@
 {%- macro rust_prelude(options) -%}
-    {%- if options.bindings -%}
+    {%- if options.language == "c" -%}
         #![cfg_attr(not(test), no_std)]
         #![allow(dead_code)]
         #![allow(unused)]
@@ -17,7 +17,7 @@
 {%- endmacro -%}
 
 {%- macro rust_struct_attr(options) -%}
-    {%- if not options.bindings -%}
+    {%- if not options.language == "c" -%}
         #[derive(Clone, CborLen, Debug, Serialize, Deserialize, Encode, Decode)]
     {%- else -%}
         #[repr(C)]
@@ -28,7 +28,7 @@
 {%- macro rust_struct(options, name, data) -%}
     pub struct {{ name | rename(case="struct", options=options)}} {
         {%- for member in data.members -%}
-            {{ member | field_attr(index=loop.index0, bindings=options.bindings) }}
+            {{ member | field_attr(index=loop.index0, language=options.language) }}
             {{ member | field(lang="rs", options=options)}},
         {%- endfor -%}
     }
@@ -111,7 +111,7 @@
 
 
 {%- macro traits(options) -%}
-    {%- if not options.bindings -%}
+    {%- if not options.language == "c" -%}
         pub trait Edit {
             fn edit(&mut self, bytes: &str);
         }

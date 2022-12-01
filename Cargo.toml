@@ -11,7 +11,7 @@
 
 
 [workspace]
-members = [ "minicbor", "cddl-gen" ]
+members = [ "minicbor", "cddl-gen", "examples/typescript"]
 
 [workspace.dependencies]
 minicbor = { version = "0.18", git = "https://www.gitlab.com/twittner/minicbor", branch = "cbor_len", default-features = false }

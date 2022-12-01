@@ -58,10 +58,19 @@ pub enum RenderError {
 /// All methods in this module return a RenderResult
 pub type RenderResult<T> = std::result::Result<T, RenderError>;
 
+#[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Language {
+    #[default]
+    C,
+    Rust,
+    Typescript,
+}
+
 /// Options for modifying behavior of rendered code
 #[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct Options {
-    pub bindings: bool,
+    pub language: Language,
     pub version: Option<String>,
     pub prefix: Option<String>,
 }
@@ -71,6 +80,7 @@ pub(crate) fn gen_lib(cddl: BTreeMap<String, LinkedNode>, opts: &Options) -> Ren
     let mut ctx = TeraContext::new();
     ctx.insert("cddl", &cddl);
     ctx.insert("options", opts);
+    println!("{:?}", ctx.get("options"));
     TEMPLATES
         .render("lib.rs.tmpl", &ctx)
         .map_err(RenderError::from)
@@ -174,49 +184,48 @@ fn filter_nodes(val: &Value, map: &HashMap<String, Value>) -> Result<Value> {
     to_value(filtered).map_err(|_| TeraError::msg(format!("infallible conversion failure")))
 }
 
-fn to_fn_case(name: &str, verb: &str, bindings: bool, prefix: Option<String>) -> String {
-    match (bindings, prefix) {
+fn to_fn_case(name: &str, verb: &str, lang: Language, prefix: Option<String>) -> String {
+    match (lang, prefix) {
         (_, Some(prefix)) => format!("{}{}_{}", prefix, verb, name).to_snake_case(),
         (_, _) => format!("{}_{}", verb, name).to_snake_case(),
     }
 }
 
-fn to_snake_case(val: &str, bindings: bool, prefix: Option<String>) -> String {
-    match (bindings, prefix) {
-        (true, None) => val.to_snake_case(),
-        (true, Some(prefix)) => format!("{}{}", prefix, val).to_snake_case(),
-        (false, _) => val.to_snake_case(),
+fn to_snake_case(val: &str, language: Language, prefix: Option<String>) -> String {
+    match (language, prefix) {
+        (Language::C, None) => val.to_snake_case(),
+        (Language::C, Some(prefix)) => format!("{}{}", prefix, val).to_snake_case(),
+        (_, _) => val.to_snake_case(),
     }
 }
 
-fn to_shouty_snake_case(val: &str, bindings: bool, prefix: Option<String>) -> String {
-    match (bindings, prefix) {
-        (true, None) => val.to_shouty_snake_case(),
-        (true, Some(prefix)) => format!("{}{}", prefix, val).to_shouty_snake_case(),
-        (false, _) => val.to_shouty_snake_case(),
+fn to_shouty_snake_case(val: &str, lang: Language, prefix: Option<String>) -> String {
+    match (lang, prefix) {
+        (Language::C, None) => val.to_shouty_snake_case(),
+        (Language::C, Some(prefix)) => format!("{}{}", prefix, val).to_shouty_snake_case(),
+        (_, _) => val.to_shouty_snake_case(),
     }
 }
 
-fn to_upper_camel_case(val: &str, bindings: bool, prefix: Option<String>) -> String {
-    match (bindings, prefix) {
-        (true, None) => val.to_upper_camel_case(),
-        (true, Some(prefix)) => format!("{}{}", prefix, val).to_upper_camel_case(),
-        (false, _) => val.to_upper_camel_case(),
+fn to_upper_camel_case(val: &str, lang: Language, prefix: Option<String>) -> String {
+    match (lang, prefix) {
+        (Language::C, None) => val.to_upper_camel_case(),
+        (Language::C, Some(prefix)) => format!("{}{}", prefix, val).to_upper_camel_case(),
+        (_, _) => val.to_upper_camel_case(),
     }
 }
 
 fn caseify(s: &str, case: &str, opts: &HashMap<String, Value>) -> Result<String> {
-    let (is_c, pre) = opts
+    let (lang, pre) = opts
         .get("options")
         .and_then(|v| serde_json::from_value::<Options>(v.clone()).ok())
-        .map(|opts| (opts.bindings, opts.prefix))
-        .unwrap_or((false, None));
+        .map(|opts| (opts.language, opts.prefix))
+        .unwrap_or((Language::default(), None));
 
     if case == "struct" {
-        if is_c {
-            Ok(to_snake_case(s, is_c, pre))
-        } else {
-            Ok(to_upper_camel_case(s, is_c, pre))
+        match lang {
+            Language::C => Ok(to_snake_case(s, lang, pre)),
+            Language::Rust | Language::Typescript => Ok(to_upper_camel_case(s, lang, pre)),
         }
     } else if case == "fn" {
         // TODO for the function case, unwrap a "verb" arg
@@ -224,9 +233,9 @@ fn caseify(s: &str, case: &str, opts: &HashMap<String, Value>) -> Result<String>
             .get("verb")
             .and_then(|val| val.as_str())
             .ok_or_else(|| TeraError::msg(format!("")))?;
-        Ok(to_fn_case(s, verb, is_c, pre))
+        Ok(to_fn_case(s, verb, lang, pre))
     } else if case == "enum" || case == "const" || case == "define" {
-        Ok(to_shouty_snake_case(s, is_c, pre))
+        Ok(to_shouty_snake_case(s, lang, pre))
     } else {
         Err(TeraError::msg(format!("unsupported rename {}", case)))
     }
@@ -248,13 +257,17 @@ fn filter_field_default(val: &Value, _map: &HashMap<String, Value>) -> Result<Va
 }
 
 fn filter_field_attr(val: &Value, map: &HashMap<String, Value>) -> Result<Value> {
-    match map.get("bindings") {
-        Some(Value::Bool(b)) if *b => filter_field_attr_bindings(val, map),
-        _ => filter_field_attr_full(val, map),
+    let lang = map
+        .get("language")
+        .and_then(|val| from_value::<String>(val.clone()).ok())
+        .unwrap_or("c".to_string());
+    match lang.as_ref() {
+        "c" => filter_field_attr_c(val, map),
+        _ => filter_field_attr_rust(val, map),
     }
 }
 
-fn filter_field_attr_full(val: &Value, map: &HashMap<String, Value>) -> Result<Value> {
+fn filter_field_attr_rust(val: &Value, map: &HashMap<String, Value>) -> Result<Value> {
     let LinkedKeyVal(_key, val) = from_value::<LinkedKeyVal>(val.clone())?;
     map.get("index")
         .and_then(|i| i.as_i64())
@@ -283,7 +296,7 @@ fn filter_field_attr_full(val: &Value, map: &HashMap<String, Value>) -> Result<V
         })
 }
 
-fn filter_field_attr_bindings(val: &Value, map: &HashMap<String, Value>) -> Result<Value> {
+fn filter_field_attr_c(val: &Value, map: &HashMap<String, Value>) -> Result<Value> {
     let LinkedKeyVal(_key, val) = from_value::<LinkedKeyVal>(val.clone())?;
     map.get("index")
         .and_then(|i| i.as_i64())

@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 use util::ValidateError;
 use validate::link_node;
 
-pub use gen::{Options, RenderError, RenderResult};
+pub use gen::{Language, Options, RenderError, RenderResult};
 pub use ivt::{Array, ConstrainedType, FlattenResult, Group, KeyVal, Literal, Node};
 pub use validate::{Fields, LinkedArray, LinkedKeyVal, LinkedNode};
 
