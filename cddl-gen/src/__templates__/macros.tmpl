@@ -1,10 +1,5 @@
 {%- macro rust_prelude(options) -%}
     {%- if options.language == "c" -%}
-        #![cfg_attr(not(test), no_std)]
-        #![allow(dead_code)]
-        #![allow(unused)]
-        #![allow(non_camel_case_types)]
-
         pub use minicbor::encode::write::Cursor;
         pub use minicbor::{self, CborLen, Decode, Decoder, Encode, Encoder};
         pub use minicbor_sys::*;
@@ -98,15 +93,17 @@
 {%- endmacro -%}
 
 {%- macro match_encode(name, enc, options) -%}
+    {%- set cbor_key = "CborKey" | rename(case="enum", options=options) -%}
     {%- set key = name | rename(case="enum", options=options) -%}
     {%- set struct = name | rename(case="struct", options=options) -%}
-    {{key}} => {{enc}}.encode(&*(ptr as *const {{struct}}))
+    {{cbor_key}}::{{key}} => {{enc}}.encode(&*(ptr as *const {{struct}}))
 {%- endmacro -%}
 
 {%- macro match_cbor_len(name, enc, options) -%}
+    {%- set cbor_key = "CborKey" | rename(case="enum", options=options) -%}
     {%- set key = name | rename(case="enum", options=options) -%}
     {%- set struct = name | rename(case="struct", options=options) -%}
-    {{key}} => <{{struct}} as CborLen<()>>::cbor_len(&*(ptr as *const {{struct}}), &mut ()) as u32
+    {{cbor_key}}::{{key}} => <{{struct}} as CborLen<()>>::cbor_len(&*(ptr as *const {{struct}}), &mut ()) as u32
 {%- endmacro -%}
 
 

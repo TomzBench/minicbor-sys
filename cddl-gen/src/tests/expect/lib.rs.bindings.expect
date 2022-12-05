@@ -1,8 +1,3 @@
-#![cfg_attr(not(test), no_std)]
-#![allow(dead_code)]
-#![allow(unused)]
-#![allow(non_camel_case_types)]
-
 pub use minicbor::encode::write::Cursor;
 pub use minicbor::{self, CborLen, Decode, Decoder, Encode, Encoder};
 pub use minicbor_sys::*;
@@ -58,13 +53,12 @@ pub enum FOO_CBOR_KEY {
 
 #[no_mangle]
 pub extern "C" fn mcbor_encode(dst: *mut u8, dstlen: u32, key: FOO_CBOR_KEY, ptr: *const core::ffi::c_void) -> i32 {
-    use ATX_CBOR_KEY::*;
     let mut slice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
     let mut enc = Encoder::new(Cursor::new(slice));
      unsafe {
         match key {
-            FOO_NETWORK => enc.encode(&*(ptr as *const foo_network)),
-            FOO_THING => enc.encode(&*(ptr as *const foo_thing)),
+            FOO_CBOR_KEY::FOO_NETWORK => enc.encode(&*(ptr as *const foo_network)),
+            FOO_CBOR_KEY::FOO_THING => enc.encode(&*(ptr as *const foo_thing)),
         }
         .map_or(-1, |enc| enc.writer().position() as i32)
     }
@@ -72,11 +66,10 @@ pub extern "C" fn mcbor_encode(dst: *mut u8, dstlen: u32, key: FOO_CBOR_KEY, ptr
 
 #[no_mangle]
 pub extern "C" fn mcbor_len(key: FOO_CBOR_KEY, ptr: *const core::ffi::c_void) -> u32 {
-    use ATX_CBOR_KEY::*;
      unsafe {
         match key {
-            FOO_NETWORK => <foo_network as CborLen<()>>::cbor_len(&*(ptr as *const foo_network), &mut ()) as u32,
-            FOO_THING => <foo_thing as CborLen<()>>::cbor_len(&*(ptr as *const foo_thing), &mut ()) as u32,
+            FOO_CBOR_KEY::FOO_NETWORK => <foo_network as CborLen<()>>::cbor_len(&*(ptr as *const foo_network), &mut ()) as u32,
+            FOO_CBOR_KEY::FOO_THING => <foo_thing as CborLen<()>>::cbor_len(&*(ptr as *const foo_thing), &mut ()) as u32,
         }
     }
 }

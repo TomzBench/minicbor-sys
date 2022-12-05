@@ -1,20 +1,32 @@
-# [package]
-# name = "minicbor-bindgen"
-# version = "0.1.0"  #:version
-# authors = ["Thomas Chiantia <thomas@altronix.com>"]
-# description = "bindings to minicbor"
-# documentation = ""
-# homepage = ""
-# repository = ""
-# keywords = ["minicbor", "cbor"]
-# edition = "2021"
+[package]
+name = "minicbor-bindgen"
+version = "0.1.0"  #:version
+authors = ["Thomas Chiantia <thomas@altronix.com>"]
+description = "bindings to minicbor"
+documentation = ""
+homepage = ""
+repository = ""
+keywords = ["minicbor", "cbor"]
+edition = "2021"
 
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+cddl-gen = { workspace = true }
 
 [workspace]
-members = [ "minicbor", "cddl-gen", "examples/typescript"]
+members = [ 
+	"minicbor",
+	"cddl-gen",
+]
+exclude = [ "examples/c" ]
 
 [workspace.dependencies]
-minicbor = { version = "0.18", git = "https://www.gitlab.com/twittner/minicbor", branch = "cbor_len", default-features = false }
+cddl-gen = { path = "cddl-gen" }
+minicbor-sys = { path = "minicbor" }
+minicbor-bindgen = { path = "." }
+minicbor = { version = "0.18", git = "https://www.gitlab.com/twittner/minicbor", branch = "cbor_len", default-features = false, features = [ "derive" ]}
 cddl-cat = { git = "https://github.com/ericseppanen/cddl-cat" }
 thiserror = "1.0"
 lazy_static = "1.4"

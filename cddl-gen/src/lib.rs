@@ -10,11 +10,11 @@ use cddl_cat::ast;
 use gen::{gen_cargo, gen_extra, gen_lib};
 use ivt::flatten_rule;
 use std::collections::BTreeMap;
-use util::ValidateError;
 use validate::link_node;
 
 pub use gen::{Language, Options, RenderError, RenderResult};
 pub use ivt::{Array, ConstrainedType, FlattenResult, Group, KeyVal, Literal, Node};
+pub use util::ValidateError;
 pub use validate::{Fields, LinkedArray, LinkedKeyVal, LinkedNode};
 
 /// Take a string of CDDL text, and create a Flattened representation of

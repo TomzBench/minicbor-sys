@@ -1,7 +1,8 @@
-#![feature(lang_items)]
 #![no_builtins]
+#![feature(lang_items)]
 #![cfg_attr(not(test), no_std)]
 
+pub use minicbor;
 use minicbor::encode::write::Cursor;
 use minicbor::encode::CborLen;
 use minicbor::{Decoder, Encoder};
@@ -407,11 +408,11 @@ mod tests {
     }
 }
 
-#[cfg(not(test))]
+#[cfg(all(not(feature = "std"), not(test)))]
 #[lang = "eh_personality"]
 fn eh_personality() {}
 
-#[cfg(not(test))]
+#[cfg(all(not(feature = "std"), not(test)))]
 #[panic_handler]
 fn panic(_info: &core::panic::PanicInfo) -> ! {
     loop {}

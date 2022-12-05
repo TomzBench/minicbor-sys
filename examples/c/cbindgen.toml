@@ -1,0 +1,17 @@
+cpp_compat = true
+language = "c"
+include_guard = "EXAMPLE_H"
+
+[parse]
+parse_deps = true
+extra_bindings = ["minicbor-sys"]
+
+[parse.expand]
+crates = ["minicbor-sys", "c"]
+
+[export]
+
+[export.mangle]
+
+[export.rename]
+
