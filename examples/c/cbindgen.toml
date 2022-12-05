@@ -3,7 +3,6 @@ language = "c"
 include_guard = "EXAMPLE_H"
 
 [parse]
-parse_deps = true
 extra_bindings = ["minicbor-sys"]
 
 [parse.expand]
