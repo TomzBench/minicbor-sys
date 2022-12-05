@@ -6,4 +6,6 @@
 #![allow(unused)]
 #![cfg_attr(not(test), no_std)]
 
+pub use minicbor_sys::*;
+
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
