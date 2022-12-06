@@ -1,3 +1,5 @@
 /target
 /Cargo.lock
 examples/**/*/target
+tests/__generated__/*
+!tests/__generated__/.gitkeep

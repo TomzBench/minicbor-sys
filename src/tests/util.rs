@@ -55,20 +55,10 @@ impl Validate for str {
 
 pub fn read_cddl(path: &str) -> String {
     let path = PathBuf::from(std::env!("CARGO_MANIFEST_DIR"))
-        .join("src/tests/cddl")
+        .join("src/tests")
         .join(path);
     let mut file = fs::File::open(path).unwrap();
     let mut cddl = String::new();
     file.read_to_string(&mut cddl).unwrap();
     cddl
-}
-
-pub fn read_expect(path: &str) -> String {
-    let path = PathBuf::from(std::env!("CARGO_MANIFEST_DIR"))
-        .join("src/tests/expect")
-        .join(path);
-    let mut file = fs::File::open(path).unwrap();
-    let mut expect = String::new();
-    file.read_to_string(&mut expect).unwrap();
-    expect
 }

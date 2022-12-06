@@ -25,8 +25,8 @@ pub enum {{ "CborKey" | rename(case="enum", options=options) }} {
 
 #[no_mangle]
 pub extern "C" fn mcbor_encode(dst: *mut u8, dstlen: u32, key: {{cbor_key}}, ptr: *const core::ffi::c_void) -> i32 {
-    let mut slice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
-    let mut enc = Encoder::new(Cursor::new(slice));
+    let slice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
+    let mut enc = Encoder::new(Cursor::new(slice.as_mut()));
     unsafe {
         match key {
             {%- for key, node in cddl | nodes(value="struct") -%}

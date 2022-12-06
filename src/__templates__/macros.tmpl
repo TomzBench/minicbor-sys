@@ -2,7 +2,6 @@
     {%- if options.language == "c" -%}
         pub use minicbor::encode::write::Cursor;
         pub use minicbor::{self, CborLen, Decode, Decoder, Encode, Encoder};
-        pub use minicbor_sys::*;
 
     {%- else -%}
         pub use minicbor::{self, CborLen, Encode, Decode};
@@ -106,7 +105,6 @@
     {{cbor_key}}::{{key}} => <{{struct}} as CborLen<()>>::cbor_len(&*(ptr as *const {{struct}}), &mut ()) as u32
 {%- endmacro -%}
 
-
 {%- macro traits(options) -%}
     {%- if not options.language == "c" -%}
         pub trait Edit {
@@ -172,8 +170,9 @@
         }
         
         #[inline]
+        #[allow(unused_must_use)]
         fn decode_error_msg(e: minicbor::decode::Error, errmsg: *mut u8, errmsg_len: &mut u32) -> i32 {
-            let mut err = unsafe { core::slice::from_raw_parts_mut(errmsg, *errmsg_len as usize) };
+            let err = unsafe { core::slice::from_raw_parts_mut(errmsg, *errmsg_len as usize) };
             core::fmt::write(&mut ErrMsg(err), format_args!("{}", e));
             *errmsg_len = err.len() as u32;
             -1
