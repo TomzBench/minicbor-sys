@@ -8,6 +8,7 @@ homepage = ""
 repository = ""
 keywords = ["minicbor", "cbor"]
 edition = "2021"
+exclude=["examples"]
 
 [lib]
 path = "src/lib.rs"
