@@ -13,27 +13,12 @@ edition = "2021"
 path = "src/lib.rs"
 
 [dependencies]
-cddl-gen = { workspace = true }
-
-[workspace]
-members = [ 
-	"minicbor",
-	"cddl-gen",
-]
-exclude = [ "examples/c" ]
-
-[workspace.dependencies]
-cddl-gen = { path = "cddl-gen" }
-minicbor-sys = { path = "minicbor" }
-minicbor-bindgen = { path = "." }
-minicbor = { version = "0.18", git = "https://www.gitlab.com/twittner/minicbor", branch = "cbor_len", default-features = false, features = [ "derive" ]}
 cddl-cat = { git = "https://github.com/ericseppanen/cddl-cat" }
-thiserror = "1.0"
 lazy_static = "1.4"
 tera = "1.17"
-serde = { version = "1.0", features = [ "derive" ] }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 heck = "0.4"
 tracing = "0.1"
-clap = { version = "4" }
-tracing-subscriber = { version = "0.3" }
+# tracing-subscriber = "0.3"
+# clap = "4"

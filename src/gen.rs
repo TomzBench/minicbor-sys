@@ -6,12 +6,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::{from_value, to_value};
 use std::collections::{BTreeMap, HashMap};
 use std::include_str;
+use std::{error, fmt};
 use tera::Context as TeraContext;
 use tera::Error as TeraError;
 use tera::Result;
 use tera::Tera;
 use tera::Value;
-use thiserror::Error;
 
 lazy_static! {
     pub static ref TEMPLATES: Tera = {
@@ -45,15 +45,36 @@ macro_rules! field_arr {
 }
 
 /// Our error type
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum RenderError {
-    #[error("Validator error {0}")]
-    Validate(#[from] ValidateError),
-    #[error("Render error {0}")]
-    Render(#[from] TeraError),
-    #[error("Invalid case {0}")]
+    Validate(ValidateError),
+    Render(TeraError),
     Case(Value),
 }
+
+impl From<ValidateError> for RenderError {
+    fn from(value: ValidateError) -> Self {
+        Self::Validate(value)
+    }
+}
+
+impl From<TeraError> for RenderError {
+    fn from(value: TeraError) -> Self {
+        Self::Render(value)
+    }
+}
+
+impl fmt::Display for RenderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RenderError::Validate(e) => e.fmt(f),
+            RenderError::Render(e) => e.fmt(f),
+            RenderError::Case(e) => write!(f, "invalid case {}", e),
+        }
+    }
+}
+
+impl error::Error for RenderError {}
 
 /// All methods in this module return a RenderResult
 pub type RenderResult<T> = std::result::Result<T, RenderError>;
