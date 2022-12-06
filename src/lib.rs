@@ -7,7 +7,7 @@ mod validate;
 mod tests;
 
 use cddl_cat::ast;
-use gen::{gen_cargo, gen_extra, gen_lib};
+use gen::gen_lib;
 use ivt::flatten_rule;
 use std::collections::BTreeMap;
 use validate::link_node;
@@ -53,15 +53,4 @@ pub fn render_lib(s: &str, mode: &Options) -> RenderResult<String> {
     parse(s)
         .map_err(RenderError::from)
         .and_then(|nodes| gen_lib(nodes, mode))
-}
-
-pub fn render_extra(s: &str, mode: &Options) -> RenderResult<String> {
-    parse(s)
-        .map_err(RenderError::from)
-        .and_then(|nodes| gen_extra(nodes, mode))
-}
-
-/// Generate a cargo template
-pub fn render_cargo(name: &str, mode: &Options) -> RenderResult<String> {
-    gen_cargo(name, mode)
 }

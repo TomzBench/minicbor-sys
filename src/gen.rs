@@ -16,17 +16,10 @@ use tera::Value;
 lazy_static! {
     pub static ref TEMPLATES: Tera = {
         let lib_tmpl = include_str!("__templates__/lib.rs.tmpl");
-        let cargo_tmpl = include_str!("__templates__/cargo.toml.tmpl");
-        let extra_tmpl = include_str!("__templates__/extra.h.tmpl");
         let macros = include_str!("__templates__/macros.tmpl");
         let mut tera = Tera::default();
-        tera.add_raw_templates(vec![
-            ("lib.rs.tmpl", lib_tmpl),
-            ("cargo.toml.tmpl", cargo_tmpl),
-            ("extra.h.tmpl", extra_tmpl),
-            ("macros.tmpl", macros),
-        ])
-        .unwrap();
+        tera.add_raw_templates(vec![("lib.rs.tmpl", lib_tmpl), ("macros.tmpl", macros)])
+            .unwrap();
         tera.register_filter("field", filter_field);
         tera.register_filter("field_attr", filter_field_attr);
         tera.register_filter("field_default", filter_field_default);
@@ -104,28 +97,6 @@ pub(crate) fn gen_lib(cddl: BTreeMap<String, LinkedNode>, opts: &Options) -> Ren
     println!("{:?}", ctx.get("options"));
     TEMPLATES
         .render("lib.rs.tmpl", &ctx)
-        .map_err(RenderError::from)
-}
-
-/// We take our template and render a cargo toml
-pub(crate) fn gen_cargo(name: &str, opts: &Options) -> RenderResult<String> {
-    let mut ctx = TeraContext::new();
-    ctx.insert("name", name);
-    ctx.insert("options", opts);
-    TEMPLATES
-        .render("cargo.toml.tmpl", &ctx)
-        .map_err(RenderError::from)
-}
-
-pub(crate) fn gen_extra(
-    cddl: BTreeMap<String, LinkedNode>,
-    opts: &Options,
-) -> RenderResult<String> {
-    let mut ctx = TeraContext::new();
-    ctx.insert("cddl", &cddl);
-    ctx.insert("options", opts);
-    TEMPLATES
-        .render("extra.h.tmpl", &ctx)
         .map_err(RenderError::from)
 }
 
