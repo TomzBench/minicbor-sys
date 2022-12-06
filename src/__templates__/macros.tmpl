@@ -192,4 +192,54 @@
     }
 {%- endmacro -%}
 
+{%- macro define_enc_len(ty) -%}
+    #[no_mangle]
+    pub extern "C" fn mcbor_enc_{{ty}}_len(val: {{ty}}) -> u32 {
+        CborLen::cbor_len(&val, &mut ()) as u32
+    }
+{%- endmacro -%}
 
+{%- macro define_enc_val(meth, ty) -%}
+    #[no_mangle]
+    pub extern "C" fn mcbor_enc_{{meth}}(dst: *mut u8, dstlen: u32, val: {{ty}}) -> i32 {
+        let dstslice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
+        let mut enc = Encoder::new(Cursor::new(dstslice.as_mut()));
+        Encoder::{{meth}}(&mut enc, val.into()).map_or(-1, |enc| enc.writer().position() as i32)
+    }
+{%- endmacro -%}
+
+{%- macro define_enc_typ(meth) -%}
+    #[no_mangle]
+    pub extern "C" fn mcbor_enc_{{meth}}(dst: *mut u8, dstlen: u32) -> i32 {
+        let dstslice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
+        let mut enc = Encoder::new(Cursor::new(dstslice.as_mut()));
+        Encoder::{{meth}}(&mut enc).map_or(-1, |enc| enc.writer().position() as i32)
+    }
+{%- endmacro -%}
+
+{%- macro define_dec_typ(meth, ty) -%}
+    #[no_mangle]
+    pub extern "C" fn mcbor_dec_{{meth}}(dst: *mut {{ty}}, src: *mut u8, srclen: u32) -> i32 {
+        let srcslice = unsafe { core::slice::from_raw_parts_mut(src, srclen as usize) };
+        let mut dec = Decoder::new(srcslice);
+        if let Ok(b) = Decoder::{{meth}}(&mut dec) {
+            unsafe { *dst = b };
+            dec.position() as i32
+        } else {
+            -1
+        }
+    }
+{%- endmacro -%}
+
+{%- macro define_dec_group(meth) -%}
+   #[no_mangle]
+   pub extern "C" fn mcbor_dec_{{meth}}(src: *mut u8, srclen: u32) -> i32 {
+       let slice = unsafe { core::slice::from_raw_parts(src as *const u8, srclen as usize) };
+       let mut decoder = Decoder::new(slice);
+       match Decoder::{{meth}}(&mut decoder) {
+           Ok(Some(val)) => val as i32,
+           Ok(None) => 0,
+           Err(_) => -1,
+       }
+   }
+{%- endmacro -%}
