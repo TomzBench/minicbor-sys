@@ -30,7 +30,7 @@ pub extern "C" fn mcbor_encode(dst: *mut u8, dstlen: u32, key: {{cbor_key}}, ptr
     unsafe {
         match key {
             {%- for key, node in cddl | nodes(value="struct") -%}
-                {{ macros::match_encode(name=key, enc="enc", ptr="ptr", options=options) }},
+                {{ macros::match_encode(name=key, options=options) }},
             {%- endfor -%}
         }
         .map_or(-1, |enc| enc.writer().position() as i32)
@@ -42,7 +42,7 @@ pub extern "C" fn mcbor_len(key: {{cbor_key}}, ptr: *const core::ffi::c_void) ->
     unsafe {
         match key {
             {%- for key, node in cddl | nodes(value="struct") -%}
-                {{ macros::match_cbor_len(name=key, enc="enc", ptr="ptr", options=options) }},
+                {{ macros::match_cbor_len(name=key, options=options) }},
             {%- endfor -%}
         }
     }

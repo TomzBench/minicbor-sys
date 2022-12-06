@@ -85,7 +85,6 @@ pub enum Language {
 #[derive(Default, PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub struct Options {
     pub language: Language,
-    pub version: Option<String>,
     pub prefix: Option<String>,
 }
 

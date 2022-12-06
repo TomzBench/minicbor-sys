@@ -91,14 +91,14 @@
 
 {%- endmacro -%}
 
-{%- macro match_encode(name, enc, options) -%}
+{%- macro match_encode(name, options) -%}
     {%- set cbor_key = "CborKey" | rename(case="enum", options=options) -%}
     {%- set key = name | rename(case="enum", options=options) -%}
     {%- set struct = name | rename(case="struct", options=options) -%}
-    {{cbor_key}}::{{key}} => {{enc}}.encode(&*(ptr as *const {{struct}}))
+    {{cbor_key}}::{{key}} => enc.encode(&*(ptr as *const {{struct}}))
 {%- endmacro -%}
 
-{%- macro match_cbor_len(name, enc, options) -%}
+{%- macro match_cbor_len(name, options) -%}
     {%- set cbor_key = "CborKey" | rename(case="enum", options=options) -%}
     {%- set key = name | rename(case="enum", options=options) -%}
     {%- set struct = name | rename(case="struct", options=options) -%}
