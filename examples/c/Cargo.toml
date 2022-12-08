@@ -10,4 +10,4 @@ minicbor = { version = "0.18", git = "https://www.gitlab.com/twittner/minicbor",
 
 [build-dependencies]
 minicbor-bindgen = { path = "../../" }
-cbindgen = "0.24"
+cbindgen = "0.21"

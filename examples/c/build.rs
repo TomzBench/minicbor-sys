@@ -6,7 +6,6 @@ fn main() {
     let opts = Options {
         language: Language::C,
         prefix: None,
-        version: None,
     };
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let cddl = fs::read_to_string(root.parent().unwrap().join("data.cddl")).unwrap();
@@ -15,12 +14,12 @@ fn main() {
     fs::write(out, lib).expect("failed to write bindings");
 
     // Generate C bindings
-    // let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    // cbindgen::Builder::new()
-    //     .with_crate(crate_dir)
-    //     .with_language(cbindgen::Language::C)
-    //     .with_parse_expand(&["c"])
-    //     .generate()
-    //     .expect("Unable to generate bindings")
-    //     .write_to_file("bindings.h");
+    let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+    cbindgen::Builder::new()
+        .with_crate(crate_dir)
+        .with_language(cbindgen::Language::C)
+        .with_parse_expand(&["c"])
+        .generate()
+        .expect("Unable to generate bindings")
+        .write_to_file("bindings.h");
 }
