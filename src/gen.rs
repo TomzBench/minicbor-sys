@@ -316,10 +316,6 @@ fn filter_field(val: &Value, map: &HashMap<String, Value>) -> Result<Value> {
 
 /// Take a field node and convert to a field member for rust struct
 fn filter_field_rs(val: &Value, map: &HashMap<String, Value>) -> Result<Value> {
-    // let opts = map
-    //     .get("options")
-    //     .and_then(|v| serde_json::from_value::<Options>(v.clone()).ok())
-    //     .map(|opts| (opts.bindings, opts.prefix));
     let LinkedKeyVal(key, val) = from_value::<LinkedKeyVal>(val.clone())
         .map(|LinkedKeyVal(key, val)| LinkedKeyVal(key.to_snake_case(), val))?;
     match val {
