@@ -1,6 +1,0 @@
-person = {
-	name: tstr .size 8,
-	id:   uint .size 1,
-}
-
-version = 2;

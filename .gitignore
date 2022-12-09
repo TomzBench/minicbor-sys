@@ -2,5 +2,9 @@
 /Cargo.lock
 examples/**/*/target
 examples/**/*/Cargo.lock
+examples/**/*/bin
+examples/**/*/pkg
+examples/**/*/wasm-pack.log
+examples/**/*/.rs.bk
 tests/__generated__/*
 !tests/__generated__/.gitkeep
