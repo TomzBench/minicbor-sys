@@ -25,8 +25,8 @@ lazy_static! {
         tera.register_filter("field_default", filter_field_default);
         tera.register_filter("rename", filter_rename);
         tera.register_filter("literal", filter_literal);
-        tera.register_filter("structs", filter_structs);
         tera.register_filter("nodes", filter_nodes);
+        tera.register_filter("fn_attr", filter_fn_attr);
         tera
     };
 }
@@ -141,19 +141,6 @@ fn filter_literal(val: &Value, map: &HashMap<String, Value>) -> Result<Value> {
         Literal::Bytes(_b) => Err(TeraError::msg(format!("unsupported literal"))),
     }
     .map(Value::String)
-}
-
-/// Take a Literal and declare a const type
-fn filter_structs(val: &Value, _map: &HashMap<String, Value>) -> Result<Value> {
-    let cddl = from_value::<BTreeMap<String, LinkedNode>>(val.clone())?;
-    let filtered = cddl
-        .into_iter()
-        .filter(|(_key, node)| match node {
-            LinkedNode::Struct(_) => true,
-            _ => false,
-        })
-        .collect::<BTreeMap<String, LinkedNode>>();
-    to_value(filtered).map_err(|_| TeraError::msg(format!("infallible conversion failure")))
 }
 
 /// Our HashMap of CDDL linked nodes can be filtered based on kind of node it is (aka struct or
@@ -357,4 +344,28 @@ fn filter_field_c(val: &Value, _map: &HashMap<String, Value>) -> Result<Value> {
         _ => unimplemented!(),
     }
     .map(Value::String)
+}
+
+macro_rules! fn_attr {
+    ("TS") => {
+        Value::String("[wasm_bindgen] pub".into())
+    };
+    ("C") => {
+        Value::String("#[no_mangle] pub extern \"C\"".into())
+    };
+    ("RUST") => {
+        Value::String("pub".into())
+    };
+}
+
+fn filter_fn_attr(_val: &Value, map: &HashMap<String, Value>) -> Result<Value> {
+    let lang = map
+        .get("language")
+        .and_then(|val| from_value::<Language>(val.clone()).ok())
+        .unwrap_or(Language::C);
+    match lang {
+        Language::C => Ok(fn_attr!("C")),
+        Language::Rust => Ok(fn_attr!("RUST")),
+        Language::Typescript => Ok(fn_attr!("TS")),
+    }
 }

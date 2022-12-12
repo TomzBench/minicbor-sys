@@ -1,53 +1,24 @@
 {%- import "macros.tmpl" as macros -%}
 {{ macros::rust_prelude(options=options) }}
+{%- set structs = cddl | nodes(value="struct") -%}
+{%- set literals = cddl | nodes(value="literal") -%}
+{%- set cbor_key = "CborKey" | rename(case="enum", options=options) -%}
 
-{%- for key, node in cddl | nodes(value="literal") -%}
-    {{ macros::rust_literal(name=key, data=node.meta, options=options) }}
+{%- for key, node in literals -%}
+    {{ node.meta | literal(lang="rs", name=key, options=options) }}
 {%- endfor -%}
 
-{%- for key, node in cddl | nodes(value="struct") -%}
-    {{ macros::rust_struct_attr(options=options) }}
+{%- for key, node in structs -%}
     {{ macros::rust_struct(name=key, data=node.meta, options=options) }}
     {%- if not options.language == "c" -%}
-        {{ macros::rust_default_impl(name=key, data=node.meta, options=options) }}
+        {{ macros::struct_default_impl(name=key, data=node.meta, options=options) }}
+    {%- else -%}
+        {{ macros::struct_ffi_impls(name=key, data=node.meta, options=options) }}
     {%- endif -%}
 {%- endfor -%}
 
 {%- if options.language == "c" -%}
-{%- set cbor_key = "CborKey" | rename(case="enum", options=options) -%}
-
-#[repr(C)]
-pub enum {{ "CborKey" | rename(case="enum", options=options) }} {
-{%- for key, node in cddl | nodes(value="struct") -%}
-    {{ key | rename(case="enum", options=options) }} = {{ loop.index0 }},
-{%- endfor -%}
-}
-
-#[no_mangle]
-pub extern "C" fn mcbor_encode(dst: *mut u8, dstlen: u32, key: {{cbor_key}}, ptr: *const core::ffi::c_void) -> i32 {
-    let slice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
-    let mut enc = Encoder::new(Cursor::new(slice.as_mut()));
-    unsafe {
-        match key {
-            {%- for key, node in cddl | nodes(value="struct") -%}
-                {{ macros::match_encode(name=key, options=options) }},
-            {%- endfor -%}
-        }
-        .map_or(-1, |enc| enc.writer().position() as i32)
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn mcbor_len(key: {{cbor_key}}, ptr: *const core::ffi::c_void) -> u32 {
-    unsafe {
-        match key {
-            {%- for key, node in cddl | nodes(value="struct") -%}
-                {{ macros::match_cbor_len(name=key, options=options) }},
-            {%- endfor -%}
-        }
-    }
-}
-
+{{ macros::generic_ffi_impls(cbor_key=cbor_key, structs=structs, options=options) }}
 {{ macros::define_enc_len(ty="i8") }}
 {{ macros::define_enc_len(ty="u8") }}
 {{ macros::define_enc_len(ty="i16") }}
@@ -89,10 +60,7 @@ pub extern "C" fn mcbor_len(key: {{cbor_key}}, ptr: *const core::ffi::c_void) ->
 
 {%- endif -%}
 
-{{ macros::traits(options=options) }}
-
-{%- for key, node in cddl -%}
-    {%- if node.type == "struct" and options.language == "c" -%}
-        {{ macros::rust_ffi_impls(name=key, data=node.meta, options=options) }}
-    {%- endif -%}
-{%- endfor -%}
+{{ macros::trait_edit() }}
+{{ macros::trait_from_bytes() }}
+{{ macros::serde_with_impl() }}
+{{ macros::err_mesg_impl() }}

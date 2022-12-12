@@ -10,16 +10,13 @@
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro rust_struct_attr(options) -%}
-    {%- if not options.language == "c" -%}
-        #[derive(Clone, CborLen, Debug, Serialize, Deserialize, Encode, Decode)]
-    {%- else -%}
-        #[repr(C)]
-        #[derive(Clone, CborLen, Encode, Decode)]
-    {%- endif -%}
-{%- endmacro -%}
-
 {%- macro rust_struct(options, name, data) -%}
+    {%- if options.language == "c" -%}
+    #[repr(C)]
+    #[derive(Clone, CborLen, Encode, Decode)]
+    {%- else -%}
+    #[derive(Clone, CborLen, Debug, Serialize, Deserialize, Encode, Decode)]
+    {%- endif -%}
     pub struct {{ name | rename(case="struct", options=options)}} {
         {%- for member in data.members -%}
             {{ member | field_attr(index=loop.index0, language=options.language) }}
@@ -28,11 +25,7 @@
     }
 {%- endmacro -%}
 
-{%- macro rust_literal(options, name, data) -%}
-    {{ data | literal(lang="rs", name=name, options=options) }}
-{%- endmacro -%}
-
-{%- macro rust_default_impl(options, name, data) -%}
+{%- macro struct_default_impl(options, name, data) -%}
     {%- set struct = name | rename(case="struct", options=options) -%}
     impl Default for {{ struct }} {
         fn default() -> {{ struct }} {
@@ -45,7 +38,7 @@
     }
 {%- endmacro -%}
 
-{%- macro rust_ffi_impls(options, name, data) -%}
+{%- macro struct_ffi_impls(options, name, data) -%}
     {%- set cbor_key = "CborKey" | rename(case="enum", options=options) -%}
     {%- set key = name | rename(case="enum", options=options) -%}
     {%- set encode = name | rename(case="fn", verb="encode", options=options) -%}
@@ -91,6 +84,40 @@
 
 {%- endmacro -%}
 
+{%- macro generic_ffi_impls(cbor_key, structs, options) -%}
+    #[repr(C)]
+    pub enum {{ cbor_key }} {
+    {%- for key, node in structs -%}
+        {{ key | rename(case="enum", options=options) }} = {{ loop.index0 }},
+    {%- endfor -%}
+    }
+    
+    #[no_mangle]
+    pub extern "C" fn mcbor_encode(dst: *mut u8, dstlen: u32, key: {{cbor_key}}, ptr: *const core::ffi::c_void) -> i32 {
+        let slice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
+        let mut enc = Encoder::new(Cursor::new(slice.as_mut()));
+        unsafe {
+            match key {
+                {%- for key, node in structs -%}
+                    {{ self::match_encode(name=key, options=options) }},
+                {%- endfor -%}
+            }
+            .map_or(-1, |enc| enc.writer().position() as i32)
+        }
+    }
+    
+    #[no_mangle]
+    pub extern "C" fn mcbor_len(key: {{cbor_key}}, ptr: *const core::ffi::c_void) -> u32 {
+        unsafe {
+            match key {
+                {%- for key, node in structs -%}
+                    {{ self::match_cbor_len(name=key, options=options) }},
+                {%- endfor -%}
+            }
+        }
+    }
+{%- endmacro -%}
+
 {%- macro match_encode(name, options) -%}
     {%- set cbor_key = "CborKey" | rename(case="enum", options=options) -%}
     {%- set key = name | rename(case="enum", options=options) -%}
@@ -105,79 +132,83 @@
     {{cbor_key}}::{{key}} => <{{struct}} as CborLen<()>>::cbor_len(&*(ptr as *const {{struct}}), &mut ()) as u32
 {%- endmacro -%}
 
-{%- macro traits(options) -%}
-    {%- if not options.language == "c" -%}
-        pub trait Edit {
-            fn edit(&mut self, bytes: &str);
+{%- macro trait_edit() -%}
+    pub trait Edit {
+        fn edit(&mut self, bytes: &str);
+    }
+    
+    impl Edit for [u8] {
+        fn edit(&mut self, bytes: &str) {
+            self[0..bytes.len()].copy_from_slice(bytes.as_bytes());
+            self[bytes.len()..].fill(0);
         }
-        
-        impl Edit for [u8] {
-            fn edit(&mut self, bytes: &str) {
-                self[0..bytes.len()].copy_from_slice(bytes.as_bytes());
-                self[bytes.len()..].fill(0);
-            }
+    }
+{%- endmacro -%}
+
+{%- macro trait_from_bytes() -%}
+    pub trait FromBytes {
+        fn from_bytes(&self) -> core::result::Result<&str, core::str::Utf8Error>;
+    }
+    
+    impl FromBytes for [u8] {
+        fn from_bytes(&self) -> core::result::Result<&str, core::str::Utf8Error> {
+            core::str::from_utf8(&self[0..]).map(|s| match s.find("\0") {
+                Some(n) => &s[0..n],
+                None => s,
+            })
         }
-        
-        pub trait FromBytes {
-            fn from_bytes(&self) -> core::result::Result<&str, core::str::Utf8Error>;
+    }
+{%- endmacro -%}
+
+{%- macro serde_with_impl() -%}
+    struct StrToBytes<const N: usize> {}
+    impl<'de, const N: usize> serde::de::Visitor<'de> for StrToBytes<N> {
+        type Value = [u8; N];
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            write!(formatter, "a string")
         }
-        
-        impl FromBytes for [u8] {
-            fn from_bytes(&self) -> core::result::Result<&str, core::str::Utf8Error> {
-                core::str::from_utf8(&self[0..]).map(|s| match s.find("\0") {
-                    Some(n) => &s[0..n],
-                    None => s,
-                })
-            }
+    
+        fn visit_str<E>(self, s: &str) -> Result<Self::Value, E> {
+            let mut ret: [u8; N] = [0; N];
+            let min = if s.len() < N { s.len() } else { N };
+            ret[0..min].copy_from_slice(&s.as_bytes()[0..min]);
+            Ok(ret)
         }
-        
-        struct StrToBytes<const N: usize> {}
-        impl<'de, const N: usize> serde::de::Visitor<'de> for StrToBytes<N> {
-            type Value = [u8; N];
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                write!(formatter, "a string")
-            }
-        
-            fn visit_str<E>(self, s: &str) -> Result<Self::Value, E> {
-                let mut ret: [u8; N] = [0; N];
-                let min = if s.len() < N { s.len() } else { N };
-                ret[0..min].copy_from_slice(&s.as_bytes()[0..min]);
-                Ok(ret)
-            }
+    }
+    
+    fn ser_bytes_as_str<S: serde::Serializer>(ty: &[u8], s: S) -> std::result::Result<S::Ok, S::Error> {
+        ty.from_bytes()
+            .map_err(|e| serde::ser::Error::custom(format!("{}", e)))
+            .and_then(|val| s.serialize_str(val))
+    }
+    
+    fn de_str_as_bytes<'de, D, const N: usize>(de: D) -> std::result::Result<[u8; N], D::Error>
+    where 
+        D: serde::de::Deserializer<'de>,
+    {
+        de.deserialize_str(StrToBytes::<N> {})
+    }
+{%- endmacro -%}
+
+{%- macro err_mesg_impl() -%}
+    struct ErrMsg<'a>(&'a mut [u8]);
+    impl<'a> core::fmt::Write for ErrMsg<'a> {
+        fn write_str(&mut self, msg: &str) -> core::fmt::Result {
+            let min = core::cmp::min(self.0.len() - 1, msg.len());
+            self.0[0..min].copy_from_slice(&msg[0..min].as_bytes());
+            self.0[min..].fill(0);
+            Ok(())
         }
-        
-        fn ser_bytes_as_str<S: serde::Serializer>(ty: &[u8], s: S) -> std::result::Result<S::Ok, S::Error> {
-            ty.from_bytes()
-                .map_err(|e| serde::ser::Error::custom(format!("{}", e)))
-                .and_then(|val| s.serialize_str(val))
-        }
-        
-        fn de_str_as_bytes<'de, D, const N: usize>(de: D) -> std::result::Result<[u8; N], D::Error>
-        where 
-            D: serde::de::Deserializer<'de>,
-        {
-            de.deserialize_str(StrToBytes::<N> {})
-        }
-    {%- else -%}
-        struct ErrMsg<'a>(&'a mut [u8]);
-        impl<'a> core::fmt::Write for ErrMsg<'a> {
-            fn write_str(&mut self, msg: &str) -> core::fmt::Result {
-                let min = core::cmp::min(self.0.len() - 1, msg.len());
-                self.0[0..min].copy_from_slice(&msg[0..min].as_bytes());
-                self.0[min..].fill(0);
-                Ok(())
-            }
-        }
-        
-        #[inline]
-        #[allow(unused_must_use)]
-        fn decode_error_msg(e: minicbor::decode::Error, errmsg: *mut u8, errmsg_len: &mut u32) -> i32 {
-            let err = unsafe { core::slice::from_raw_parts_mut(errmsg, *errmsg_len as usize) };
-            core::fmt::write(&mut ErrMsg(err), format_args!("{}", e));
-            *errmsg_len = err.len() as u32;
-            -1
-        }
-    {%- endif -%}
+    }
+    
+    #[inline]
+    #[allow(unused_must_use)]
+    fn decode_error_msg(e: minicbor::decode::Error, errmsg: *mut u8, errmsg_len: &mut u32) -> i32 {
+        let err = unsafe { core::slice::from_raw_parts_mut(errmsg, *errmsg_len as usize) };
+        core::fmt::write(&mut ErrMsg(err), format_args!("{}", e));
+        *errmsg_len = err.len() as u32;
+        -1
+    }
 {%- endmacro -%}
 
 {%- macro send_def(name) -%}
