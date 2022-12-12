@@ -1,4 +1,4 @@
-{%- macro rust_prelude(options) -%}
+{%- macro prelude(options) -%}
     {%- if options.language == "c" -%}
         pub use minicbor::encode::write::Cursor;
         pub use minicbor::{self, CborLen, Decode, Decoder, Encode, Encoder};
@@ -10,7 +10,7 @@
     {%- endif -%}
 {%- endmacro -%}
 
-{%- macro rust_struct(options, name, data) -%}
+{%- macro struct_impl(options, name, data) -%}
     {%- if options.language == "c" -%}
     #[repr(C)]
     #[derive(Clone, CborLen, Encode, Decode)]
