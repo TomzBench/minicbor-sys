@@ -358,11 +358,8 @@ macro_rules! fn_attr {
     };
 }
 
-fn filter_fn_attr(_val: &Value, map: &HashMap<String, Value>) -> Result<Value> {
-    let lang = map
-        .get("language")
-        .and_then(|val| from_value::<Language>(val.clone()).ok())
-        .unwrap_or(Language::C);
+fn filter_fn_attr(val: &Value, _map: &HashMap<String, Value>) -> Result<Value> {
+    let lang = from_value::<Language>(val.clone()).unwrap_or(Language::C);
     match lang {
         Language::C => Ok(fn_attr!("C")),
         Language::Rust => Ok(fn_attr!("RUST")),

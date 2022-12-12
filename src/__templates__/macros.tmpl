@@ -223,14 +223,14 @@
     }
 {%- endmacro -%}
 
-{%- macro define_enc_len(ty) -%}
+{%- macro impl_enc_len(ty) -%}
     #[no_mangle]
     pub extern "C" fn mcbor_enc_{{ty}}_len(val: {{ty}}) -> u32 {
         CborLen::cbor_len(&val, &mut ()) as u32
     }
 {%- endmacro -%}
 
-{%- macro define_enc_val(meth, ty) -%}
+{%- macro impl_enc_val(meth, ty) -%}
     #[no_mangle]
     pub extern "C" fn mcbor_enc_{{meth}}(dst: *mut u8, dstlen: u32, val: {{ty}}) -> i32 {
         let dstslice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
@@ -239,7 +239,7 @@
     }
 {%- endmacro -%}
 
-{%- macro define_enc_typ(meth) -%}
+{%- macro impl_enc_typ(meth) -%}
     #[no_mangle]
     pub extern "C" fn mcbor_enc_{{meth}}(dst: *mut u8, dstlen: u32) -> i32 {
         let dstslice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
@@ -248,7 +248,7 @@
     }
 {%- endmacro -%}
 
-{%- macro define_dec_typ(meth, ty) -%}
+{%- macro impl_dec_typ(meth, ty) -%}
     #[no_mangle]
     pub extern "C" fn mcbor_dec_{{meth}}(dst: *mut {{ty}}, src: *mut u8, srclen: u32) -> i32 {
         let srcslice = unsafe { core::slice::from_raw_parts_mut(src, srclen as usize) };
@@ -262,7 +262,7 @@
     }
 {%- endmacro -%}
 
-{%- macro define_dec_group(meth) -%}
+{%- macro impl_dec_group(meth) -%}
    #[no_mangle]
    pub extern "C" fn mcbor_dec_{{meth}}(src: *mut u8, srclen: u32) -> i32 {
        let slice = unsafe { core::slice::from_raw_parts(src as *const u8, srclen as usize) };
