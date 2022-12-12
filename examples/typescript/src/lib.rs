@@ -1,5 +1,6 @@
 mod utils;
 
+pub use minicbor::{self, CborLen, Decode, Decoder, Encode, Encoder};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -65,7 +66,28 @@ extern "C" {
     pub type IFoo;
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, CborLen, Debug, Serialize, Deserialize, Encode, Decode)]
+#[wasm_bindgen]
+pub struct Network {
+    #[n(0)]
+    pub dhcp: bool,
+    #[n(1)]
+    #[serde(serialize_with = "ser_bytes_as_str")]
+    #[serde(deserialize_with = "de_str_as_bytes")]
+    pub ip: [u8; 16],
+    #[n(2)]
+    #[serde(serialize_with = "ser_bytes_as_str")]
+    #[serde(deserialize_with = "de_str_as_bytes")]
+    pub sn: [u8; 16],
+    #[n(3)]
+    #[serde(serialize_with = "ser_bytes_as_str")]
+    #[serde(deserialize_with = "de_str_as_bytes")]
+    pub gw: [u8; 16],
+    #[cbor(n(4))]
+    pub mac: [u8; 6],
+}
+
+#[derive(Debug, Default, Encode, Decode, CborLen, Serialize, Deserialize)]
 #[wasm_bindgen]
 pub struct Foo {
     // TODO String not supported.
@@ -73,10 +95,13 @@ pub struct Foo {
     //      IE: serialize_with and deserialize_with encode_with and decode_with. Where these impls
     //      will serialize strings into byte arrays and deserialize byte arrays as strings as
     //      necessary. (a real [u8] will not need serialize_with and friends)
+    #[n(0)]
     #[serde(serialize_with = "ser_bytes_as_str")]
     #[serde(deserialize_with = "de_str_as_bytes")]
     name: [u8; 8],
+    #[n(1)]
     data: [u8; 3],
+    #[n(2)]
     ver: u8,
 }
 
@@ -134,3 +159,5 @@ pub fn foo_make() -> JsValue {
     })
     .unwrap()
 }
+
+

@@ -5,58 +5,59 @@
 {%- set cbor_key = "CborKey" | rename(case="enum", options=options) -%}
 
 {%- for key, node in literals -%}
-    {{ node.meta | literal(lang="rs", name=key, options=options) }}
+    {{ node.meta | literal(name=key, options=options) }}
 {%- endfor -%}
 
 {%- for key, node in structs -%}
     {{ macros::struct_impl(name=key, data=node.meta, options=options) }}
-    {%- if not options.language == "c" -%}
-        {{ macros::struct_default_impl(name=key, data=node.meta, options=options) }}
-    {%- else -%}
+    {%- if options.language == "c" -%}
         {{ macros::struct_ffi_impls(name=key, data=node.meta, options=options) }}
+    {%- elif options.language == "rust" -%}
+        {{ macros::struct_default_impl(name=key, data=node.meta, options=options) }}
+    {%- elif options.language == "typescript" -%}
     {%- endif -%}
 {%- endfor -%}
 
 {%- if options.language == "c" -%}
 {{ macros::generic_ffi_impls(cbor_key=cbor_key, structs=structs, options=options) }}
-{{ macros::impl_enc_len(ty="i8") }}
-{{ macros::impl_enc_len(ty="u8") }}
-{{ macros::impl_enc_len(ty="i16") }}
-{{ macros::impl_enc_len(ty="u16") }}
-{{ macros::impl_enc_len(ty="i32") }}
-{{ macros::impl_enc_len(ty="u32") }}
-{{ macros::impl_enc_len(ty="i64") }}
-{{ macros::impl_enc_len(ty="u64") }}
-{{ macros::impl_enc_val(meth="i8", ty="i8") }}
-{{ macros::impl_enc_val(meth="u8", ty="u8") }}
-{{ macros::impl_enc_val(meth="i16", ty="i16") }}
-{{ macros::impl_enc_val(meth="u16", ty="u16") }}
-{{ macros::impl_enc_val(meth="i32", ty="i32") }}
-{{ macros::impl_enc_val(meth="u32", ty="u32") }}
-{{ macros::impl_enc_val(meth="i64", ty="i64") }}
-{{ macros::impl_enc_val(meth="u64", ty="u64") }}
-{{ macros::impl_enc_val(meth="simple", ty="u8") }}
-{{ macros::impl_enc_val(meth="bool", ty="bool") }}
-{{ macros::impl_enc_val(meth="char", ty="u8") }}
-{{ macros::impl_enc_val(meth="array", ty="u32") }}
-{{ macros::impl_enc_val(meth="map", ty="u32") }}
-{{ macros::impl_enc_typ(meth="null") }}
-{{ macros::impl_enc_typ(meth="undefined") }}
-{{ macros::impl_dec_typ(meth="i8", ty="i8") }}
-{{ macros::impl_dec_typ(meth="u8", ty="u8") }}
-{{ macros::impl_dec_typ(meth="i16", ty="i16") }}
-{{ macros::impl_dec_typ(meth="u16", ty="u16") }}
-{{ macros::impl_dec_typ(meth="i32", ty="i32") }}
-{{ macros::impl_dec_typ(meth="u32", ty="u32") }}
-{{ macros::impl_dec_typ(meth="i64", ty="i64") }}
-{{ macros::impl_dec_typ(meth="u64", ty="u64") }}
-{{ macros::impl_dec_typ(meth="null", ty="()") }}
-{{ macros::impl_dec_typ(meth="undefined", ty="()") }}
-{{ macros::impl_dec_typ(meth="simple", ty="u8") }}
-{{ macros::impl_dec_typ(meth="bool", ty="bool") }}
-{{ macros::impl_dec_typ(meth="char", ty="char") }}
-{{ macros::impl_dec_group(meth="map") }}
-{{ macros::impl_dec_group(meth="array") }}
+{{ macros::impl_enc_len(lang=options.language, ty="i8") }}
+{{ macros::impl_enc_len(lang=options.language, ty="u8") }}
+{{ macros::impl_enc_len(lang=options.language, ty="i16") }}
+{{ macros::impl_enc_len(lang=options.language, ty="u16") }}
+{{ macros::impl_enc_len(lang=options.language, ty="i32") }}
+{{ macros::impl_enc_len(lang=options.language, ty="u32") }}
+{{ macros::impl_enc_len(lang=options.language, ty="i64") }}
+{{ macros::impl_enc_len(lang=options.language, ty="u64") }}
+{{ macros::impl_enc_val(lang=options.language, meth="i8", ty="i8") }}
+{{ macros::impl_enc_val(lang=options.language, meth="u8", ty="u8") }}
+{{ macros::impl_enc_val(lang=options.language, meth="i16", ty="i16") }}
+{{ macros::impl_enc_val(lang=options.language, meth="u16", ty="u16") }}
+{{ macros::impl_enc_val(lang=options.language, meth="i32", ty="i32") }}
+{{ macros::impl_enc_val(lang=options.language, meth="u32", ty="u32") }}
+{{ macros::impl_enc_val(lang=options.language, meth="i64", ty="i64") }}
+{{ macros::impl_enc_val(lang=options.language, meth="u64", ty="u64") }}
+{{ macros::impl_enc_val(lang=options.language, meth="simple", ty="u8") }}
+{{ macros::impl_enc_val(lang=options.language, meth="bool", ty="bool") }}
+{{ macros::impl_enc_val(lang=options.language, meth="char", ty="u8") }}
+{{ macros::impl_enc_val(lang=options.language, meth="array", ty="u32") }}
+{{ macros::impl_enc_val(lang=options.language, meth="map", ty="u32") }}
+{{ macros::impl_enc_typ(lang=options.language, meth="null") }}
+{{ macros::impl_enc_typ(lang=options.language, meth="undefined") }}
+{{ macros::impl_dec_typ(lang=options.language, meth="i8", ty="i8") }}
+{{ macros::impl_dec_typ(lang=options.language, meth="u8", ty="u8") }}
+{{ macros::impl_dec_typ(lang=options.language, meth="i16", ty="i16") }}
+{{ macros::impl_dec_typ(lang=options.language, meth="u16", ty="u16") }}
+{{ macros::impl_dec_typ(lang=options.language, meth="i32", ty="i32") }}
+{{ macros::impl_dec_typ(lang=options.language, meth="u32", ty="u32") }}
+{{ macros::impl_dec_typ(lang=options.language, meth="i64", ty="i64") }}
+{{ macros::impl_dec_typ(lang=options.language, meth="u64", ty="u64") }}
+{{ macros::impl_dec_typ(lang=options.language, meth="null", ty="()") }}
+{{ macros::impl_dec_typ(lang=options.language, meth="undefined", ty="()") }}
+{{ macros::impl_dec_typ(lang=options.language, meth="simple", ty="u8") }}
+{{ macros::impl_dec_typ(lang=options.language, meth="bool", ty="bool") }}
+{{ macros::impl_dec_typ(lang=options.language, meth="char", ty="char") }}
+{{ macros::impl_dec_group(lang=options.language, meth="map") }}
+{{ macros::impl_dec_group(lang=options.language, meth="array") }}
 
 {%- endif -%}
 

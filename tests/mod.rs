@@ -14,14 +14,6 @@ fn render_cddl(path: &str, opts: Options) -> () {
 fn test_render_lib() {
     let runner = trybuild::TestCases::new();
     render_cddl(
-        "__generated__/c_with_prefix.rs",
-        Options {
-            language: Language::C,
-            prefix: Some("foo".into()),
-            ..Options::default()
-        },
-    );
-    render_cddl(
         "__generated__/c.rs",
         Options {
             language: Language::C,
@@ -29,9 +21,9 @@ fn test_render_lib() {
         },
     );
     render_cddl(
-        "__generated__/rust_with_prefix.rs",
+        "__generated__/c_with_prefix.rs",
         Options {
-            language: Language::Rust,
+            language: Language::C,
             prefix: Some("foo".into()),
             ..Options::default()
         },
@@ -43,9 +35,35 @@ fn test_render_lib() {
             ..Options::default()
         },
     );
+    render_cddl(
+        "__generated__/rust_with_prefix.rs",
+        Options {
+            language: Language::Rust,
+            prefix: Some("foo".into()),
+            ..Options::default()
+        },
+    );
+
+    render_cddl(
+        "__generated__/typescript.rs",
+        Options {
+            language: Language::Typescript,
+            ..Options::default()
+        },
+    );
+    render_cddl(
+        "__generated__/typescript_with_prefix.rs",
+        Options {
+            language: Language::Typescript,
+            prefix: Some("foo".into()),
+            ..Options::default()
+        },
+    );
 
     runner.pass("tests/__generated__/c.rs");
     runner.pass("tests/__generated__/c_with_prefix.rs");
     runner.pass("tests/__generated__/rust.rs");
     runner.pass("tests/__generated__/rust_with_prefix.rs");
+    runner.pass("tests/__generated__/typescript.rs");
+    runner.pass("tests/__generated__/typescript_with_prefix.rs");
 }

@@ -2,11 +2,16 @@
     {%- if options.language == "c" -%}
         pub use minicbor::encode::write::Cursor;
         pub use minicbor::{self, CborLen, Decode, Decoder, Encode, Encoder};
-
-    {%- else -%}
+    {%- elif options.language == "rust" -%}
         pub use minicbor::{self, CborLen, Encode, Decode};
         use serde::{Deserialize, Serialize};
         use serde_big_array::BigArray;
+    {%- elif options.language == "typescript" -%}
+        pub use minicbor::encode::write::Cursor;
+        pub use minicbor::{self, CborLen, Decode, Decoder, Encode, Encoder};
+        use serde::{Deserialize, Serialize};
+        use serde_big_array::BigArray;
+        use wasm_bindgen::prelude::*;
     {%- endif -%}
 {%- endmacro -%}
 
@@ -14,13 +19,16 @@
     {%- if options.language == "c" -%}
     #[repr(C)]
     #[derive(Clone, CborLen, Encode, Decode)]
-    {%- else -%}
+    {%- elif options.language == "rust" -%}
+    #[derive(Clone, CborLen, Debug, Serialize, Deserialize, Encode, Decode)]
+    {%- elif options.language == "typescript" -%}
+    #[wasm_bindgen]
     #[derive(Clone, CborLen, Debug, Serialize, Deserialize, Encode, Decode)]
     {%- endif -%}
     pub struct {{ name | rename(case="struct", options=options)}} {
         {%- for member in data.members -%}
             {{ member | field_attr(index=loop.index0, language=options.language) }}
-            {{ member | field(lang="rs", options=options)}},
+            {{ member | field(options=options)}},
         {%- endfor -%}
     }
 {%- endmacro -%}
@@ -45,13 +53,13 @@
     {%- set decode = name | rename(case="fn", verb="decode", options=options) -%}
     {%- set struct = name | rename(case="struct", options=options) -%}
 
-    #[no_mangle]
-    pub extern "C" fn {{encode}}(dst: *mut u8, dstlen: u32, src: &{{struct}}) -> i32 {
+    {{ options.language | fn_attr() }}
+    fn {{encode}}(dst: *mut u8, dstlen: u32, src: &{{struct}}) -> i32 {
         mcbor_encode(dst, dstlen, {{cbor_key}}::{{key}}, src as *const {{struct}} as *const core::ffi::c_void)
     }
 
-    #[no_mangle]
-    pub extern "C" fn {{decode}}(dst: &mut {{struct}}, bytes: *const u8, len: u32) -> i32 {
+    {{ options.language | fn_attr() }}
+    fn {{decode}}(dst: &mut {{struct}}, bytes: *const u8, len: u32) -> i32 {
         let slice = unsafe { core::slice::from_raw_parts(bytes, len as usize) };
         let mut decoder = Decoder::new(slice);
         if let Ok(t) = decoder.decode::<{{struct}}>() {
@@ -62,8 +70,8 @@
         }
     }
     
-    #[no_mangle]
-    pub extern "C" fn {{decode}}_w_errmsg(
+    {{ options.language | fn_attr() }}
+    fn {{decode}}_w_errmsg(
         dst: &mut {{struct}},
         errmsg: Option<&mut u8>,
         errmsg_len: Option<&mut u32>,
@@ -85,15 +93,19 @@
 {%- endmacro -%}
 
 {%- macro generic_ffi_impls(cbor_key, structs, options) -%}
+    {%- if options.language == "c" -%}
     #[repr(C)]
+    {%- elif options.language == "typescript" -%}
+    #[wasm_bindgen]
+    {%- endif -%}
     pub enum {{ cbor_key }} {
     {%- for key, node in structs -%}
         {{ key | rename(case="enum", options=options) }} = {{ loop.index0 }},
     {%- endfor -%}
     }
     
-    #[no_mangle]
-    pub extern "C" fn mcbor_encode(dst: *mut u8, dstlen: u32, key: {{cbor_key}}, ptr: *const core::ffi::c_void) -> i32 {
+    {{ options.language | fn_attr() }}
+    fn mcbor_encode(dst: *mut u8, dstlen: u32, key: {{cbor_key}}, ptr: *const core::ffi::c_void) -> i32 {
         let slice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
         let mut enc = Encoder::new(Cursor::new(slice.as_mut()));
         unsafe {
@@ -106,8 +118,8 @@
         }
     }
     
-    #[no_mangle]
-    pub extern "C" fn mcbor_len(key: {{cbor_key}}, ptr: *const core::ffi::c_void) -> u32 {
+    {{ options.language | fn_attr() }}
+    fn mcbor_len(key: {{cbor_key}}, ptr: *const core::ffi::c_void) -> u32 {
         unsafe {
             match key {
                 {%- for key, node in structs -%}
@@ -223,34 +235,35 @@
     }
 {%- endmacro -%}
 
-{%- macro impl_enc_len(ty) -%}
-    #[no_mangle]
-    pub extern "C" fn mcbor_enc_{{ty}}_len(val: {{ty}}) -> u32 {
+{%- macro impl_enc_len(lang, ty) -%}
+    
+    {{ lang | fn_attr() }} 
+    fn mcbor_enc_{{ty}}_len(val: {{ty}}) -> u32 {
         CborLen::cbor_len(&val, &mut ()) as u32
     }
 {%- endmacro -%}
 
-{%- macro impl_enc_val(meth, ty) -%}
-    #[no_mangle]
-    pub extern "C" fn mcbor_enc_{{meth}}(dst: *mut u8, dstlen: u32, val: {{ty}}) -> i32 {
+{%- macro impl_enc_val(lang, meth, ty) -%}
+    {{ lang | fn_attr() }} 
+    fn mcbor_enc_{{meth}}(dst: *mut u8, dstlen: u32, val: {{ty}}) -> i32 {
         let dstslice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
         let mut enc = Encoder::new(Cursor::new(dstslice.as_mut()));
         Encoder::{{meth}}(&mut enc, val.into()).map_or(-1, |enc| enc.writer().position() as i32)
     }
 {%- endmacro -%}
 
-{%- macro impl_enc_typ(meth) -%}
-    #[no_mangle]
-    pub extern "C" fn mcbor_enc_{{meth}}(dst: *mut u8, dstlen: u32) -> i32 {
+{%- macro impl_enc_typ(lang, meth) -%}
+    {{ lang | fn_attr() }}
+    fn mcbor_enc_{{meth}}(dst: *mut u8, dstlen: u32) -> i32 {
         let dstslice = unsafe { core::slice::from_raw_parts_mut(dst, dstlen as usize) };
         let mut enc = Encoder::new(Cursor::new(dstslice.as_mut()));
         Encoder::{{meth}}(&mut enc).map_or(-1, |enc| enc.writer().position() as i32)
     }
 {%- endmacro -%}
 
-{%- macro impl_dec_typ(meth, ty) -%}
-    #[no_mangle]
-    pub extern "C" fn mcbor_dec_{{meth}}(dst: *mut {{ty}}, src: *mut u8, srclen: u32) -> i32 {
+{%- macro impl_dec_typ(lang, meth, ty) -%}
+    {{ lang | fn_attr() }}
+    fn mcbor_dec_{{meth}}(dst: *mut {{ty}}, src: *mut u8, srclen: u32) -> i32 {
         let srcslice = unsafe { core::slice::from_raw_parts_mut(src, srclen as usize) };
         let mut dec = Decoder::new(srcslice);
         if let Ok(b) = Decoder::{{meth}}(&mut dec) {
@@ -262,9 +275,9 @@
     }
 {%- endmacro -%}
 
-{%- macro impl_dec_group(meth) -%}
-   #[no_mangle]
-   pub extern "C" fn mcbor_dec_{{meth}}(src: *mut u8, srclen: u32) -> i32 {
+{%- macro impl_dec_group(lang, meth) -%}
+    {{ lang | fn_attr() }}
+    fn mcbor_dec_{{meth}}(src: *mut u8, srclen: u32) -> i32 {
        let slice = unsafe { core::slice::from_raw_parts(src as *const u8, srclen as usize) };
        let mut decoder = Decoder::new(slice);
        match Decoder::{{meth}}(&mut decoder) {

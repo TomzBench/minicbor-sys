@@ -33,7 +33,7 @@ lazy_static! {
 
 macro_rules! field_arr {
     ($key:expr, $ty:literal, $len:expr) => {
-        format!("pub {}: [{}; {}]", $key, $ty, $len)
+        format!("{}: [{}; {}]", $key, $ty, $len)
     };
 }
 
@@ -93,7 +93,6 @@ pub(crate) fn gen_lib(cddl: BTreeMap<String, LinkedNode>, opts: &Options) -> Ren
     let mut ctx = TeraContext::new();
     ctx.insert("cddl", &cddl);
     ctx.insert("options", opts);
-    println!("{:?}", ctx.get("options"));
     TEMPLATES
         .render("lib.rs.tmpl", &ctx)
         .map_err(RenderError::from)
@@ -295,9 +294,16 @@ fn filter_field_attr_c(val: &Value, map: &HashMap<String, Value>) -> Result<Valu
 
 /// Take a field node and convert to a field member according to lang type
 fn filter_field(val: &Value, map: &HashMap<String, Value>) -> Result<Value> {
-    match map.get("lang") {
-        Some(Value::String(s)) if s.to_lowercase() == "rs" => filter_field_rs(val, map),
-        _ => filter_field_c(val, map),
+    let lang = map
+        .get("options")
+        .and_then(|val| from_value::<Options>(val.clone()).ok())
+        .map(|opts| opts.language)
+        .unwrap_or_else(|| Language::default());
+
+    match lang {
+        Language::C => filter_field_rs(val, map),
+        Language::Typescript => filter_field_ts(val, map),
+        Language::Rust => filter_field_rs(val, map),
     }
 }
 
@@ -326,21 +332,26 @@ fn filter_field_rs(val: &Value, map: &HashMap<String, Value>) -> Result<Value> {
     .map(Value::String)
 }
 
-/// Take a field node and convert to a field member for a c struct
-fn filter_field_c(val: &Value, _map: &HashMap<String, Value>) -> Result<Value> {
+/// NOTE This is identical to the rust struct except the fields are not public
+fn filter_field_ts(val: &Value, map: &HashMap<String, Value>) -> Result<Value> {
     let LinkedKeyVal(key, val) = from_value::<LinkedKeyVal>(val.clone())
         .map(|LinkedKeyVal(key, val)| LinkedKeyVal(key.to_snake_case(), val))?;
     match val {
-        LinkedNode::ConstrainedType(ConstrainedType::U8) => Ok(format!("uint8_t {}", key)),
-        LinkedNode::ConstrainedType(ConstrainedType::U16) => Ok(format!("uint16_t {}", key)),
-        LinkedNode::ConstrainedType(ConstrainedType::U32) => Ok(format!("uint32_t {}", key)),
-        LinkedNode::ConstrainedType(ConstrainedType::U64) => Ok(format!("uint64_t {}", key)),
-        LinkedNode::ConstrainedType(ConstrainedType::I8) => Ok(format!("int8_t {}", key)),
-        LinkedNode::ConstrainedType(ConstrainedType::I16) => Ok(format!("int16_t {}", key)),
-        LinkedNode::ConstrainedType(ConstrainedType::I32) => Ok(format!("int32_t {}", key)),
-        LinkedNode::ConstrainedType(ConstrainedType::I64) => Ok(format!("int64_t {}", key)),
-        LinkedNode::ConstrainedType(ConstrainedType::Bool) => Ok(format!("bool {}", key)),
-        LinkedNode::ConstrainedType(ConstrainedType::Str(n)) => Ok(format!("char {}[{}]", key, n)),
+        LinkedNode::ConstrainedType(ConstrainedType::U8) => Ok(format!("{}: u8", key)),
+        LinkedNode::ConstrainedType(ConstrainedType::U16) => Ok(format!("{}: u16", key)),
+        LinkedNode::ConstrainedType(ConstrainedType::U32) => Ok(format!("{}: u32", key)),
+        LinkedNode::ConstrainedType(ConstrainedType::U64) => Ok(format!("{}: u64", key)),
+        LinkedNode::ConstrainedType(ConstrainedType::I8) => Ok(format!("{}: i8", key)),
+        LinkedNode::ConstrainedType(ConstrainedType::I16) => Ok(format!("{}: i16", key)),
+        LinkedNode::ConstrainedType(ConstrainedType::I32) => Ok(format!("{}: i32", key)),
+        LinkedNode::ConstrainedType(ConstrainedType::I64) => Ok(format!("{}: i64", key)),
+        LinkedNode::ConstrainedType(ConstrainedType::Bool) => Ok(format!("{}: bool", key)),
+        LinkedNode::ConstrainedType(ConstrainedType::Str(n)) => Ok(field_arr!(key, "u8", n)),
+        LinkedNode::ForeignStruct(s) => Ok(format!("{}: {}", key, caseify(&s, "struct", map)?)),
+        LinkedNode::Array(LinkedArray { ty, len }) => match *ty {
+            LinkedNode::ConstrainedType(ConstrainedType::U8) => Ok(field_arr!(key, "u8", len)),
+            _ => unimplemented!(),
+        },
         _ => unimplemented!(),
     }
     .map(Value::String)
@@ -348,7 +359,7 @@ fn filter_field_c(val: &Value, _map: &HashMap<String, Value>) -> Result<Value> {
 
 macro_rules! fn_attr {
     ("TS") => {
-        Value::String("[wasm_bindgen] pub".into())
+        Value::String("#[wasm_bindgen] pub".into())
     };
     ("C") => {
         Value::String("#[no_mangle] pub extern \"C\"".into())
@@ -359,7 +370,7 @@ macro_rules! fn_attr {
 }
 
 fn filter_fn_attr(val: &Value, _map: &HashMap<String, Value>) -> Result<Value> {
-    let lang = from_value::<Language>(val.clone()).unwrap_or(Language::C);
+    let lang = from_value::<Language>(val.clone()).expect("invalid language input");
     match lang {
         Language::C => Ok(fn_attr!("C")),
         Language::Rust => Ok(fn_attr!("RUST")),
