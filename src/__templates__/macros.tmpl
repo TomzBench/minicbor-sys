@@ -33,6 +33,40 @@
     }
 {%- endmacro -%}
 
+{%- macro struct_wasm_impl(options, name, data) -%}
+    {%- set struct = name | rename(case="struct", options=options) -%}
+    #[wasm_bindgen]
+    impl {{ struct }} {
+        #[wasm_bindgen(constructor)]
+        pub fn new() -> {{ struct }} {
+            {{ struct }}::default()
+        }
+
+        #[wasm_bindgen]
+        pub fn from_json(json: &str) -> Result<{{ struct }}, JsValue> {
+            serde_json::from_str(json).map_err(|_e| unimplemented!())
+        }
+
+        #[wasm_bindgen]
+        pub fn from_cbor(cbor: &[u8]) -> Result<{{ struct }}, JsValue> {
+            let mut dec = Decoder::new(cbor);
+            dec.decode().map_err(|_e| unimplemented!())
+        }
+
+        #[wasm_bindgen]
+        pub fn as_json(&self) -> JsValue {
+            serde_wasm_bindgen::to_value(self).unwrap()
+        }
+
+        #[wasm_bindgen]
+        pub fn as_cbor(&self) -> Vec<u8> {
+            let mut enc = Encoder::new(InfallibleEncoder::new(self.cbor_len(&mut ())));
+            enc.encode(self).unwrap();
+            enc.into_writer().into_inner()
+        }
+    }
+{%- endmacro -%}
+
 {%- macro struct_default_impl(options, name, data) -%}
     {%- set struct = name | rename(case="struct", options=options) -%}
     impl Default for {{ struct }} {
@@ -199,6 +233,28 @@
         D: serde::de::Deserializer<'de>,
     {
         de.deserialize_str(StrToBytes::<N> {})
+    }
+{%- endmacro -%}
+
+{%- macro infallible_encoder() -%}
+    pub struct InfallibleEncoder(Vec<u8>);
+    impl InfallibleEncoder {
+
+        pub fn new(len: usize) -> InfallibleEncoder {
+            InfallibleEncoder(Vec::with_capacity(len))
+        }
+
+        pub fn into_inner(self) -> Vec<u8> {
+            self.0
+        }
+    }
+    
+    impl minicbor::encode::Write for InfallibleEncoder {
+        type Error = core::convert::Infallible;
+        fn write_all(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
+            self.0.extend_from_slice(buf);
+            Ok(())
+        }
     }
 {%- endmacro -%}
 

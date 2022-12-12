@@ -1,8 +1,26 @@
 mod utils;
 
-pub use minicbor::{self, CborLen, Decode, Decoder, Encode, Encoder};
+pub use minicbor::{self, encode, CborLen, Decode, Decoder, Encode, Encoder};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
+
+pub struct InfallibleVecEncoder(Vec<u8>);
+impl InfallibleVecEncoder {
+    pub fn new(len: usize) -> InfallibleVecEncoder {
+        InfallibleVecEncoder(Vec::with_capacity(len))
+    }
+    pub fn into_inner(self) -> Vec<u8> {
+        self.0
+    }
+}
+
+impl encode::Write for InfallibleVecEncoder {
+    type Error = core::convert::Infallible;
+    fn write_all(&mut self, buf: &[u8]) -> Result<(), Self::Error> {
+        self.0.extend_from_slice(buf);
+        Ok(())
+    }
+}
 
 pub trait FromBytes {
     fn from_bytes(&self) -> core::result::Result<&str, core::str::Utf8Error>;
@@ -66,27 +84,6 @@ extern "C" {
     pub type IFoo;
 }
 
-#[derive(Clone, CborLen, Debug, Serialize, Deserialize, Encode, Decode)]
-#[wasm_bindgen]
-pub struct Network {
-    #[n(0)]
-    pub dhcp: bool,
-    #[n(1)]
-    #[serde(serialize_with = "ser_bytes_as_str")]
-    #[serde(deserialize_with = "de_str_as_bytes")]
-    pub ip: [u8; 16],
-    #[n(2)]
-    #[serde(serialize_with = "ser_bytes_as_str")]
-    #[serde(deserialize_with = "de_str_as_bytes")]
-    pub sn: [u8; 16],
-    #[n(3)]
-    #[serde(serialize_with = "ser_bytes_as_str")]
-    #[serde(deserialize_with = "de_str_as_bytes")]
-    pub gw: [u8; 16],
-    #[cbor(n(4))]
-    pub mac: [u8; 6],
-}
-
 #[derive(Debug, Default, Encode, Decode, CborLen, Serialize, Deserialize)]
 #[wasm_bindgen]
 pub struct Foo {
@@ -113,30 +110,40 @@ impl Foo {
     }
 
     #[wasm_bindgen]
+    pub fn from_json(json: &str) -> Result<Foo, JsValue> {
+        serde_json::from_str(json).map_err(|e| unimplemented!())
+    }
+
+    #[wasm_bindgen]
+    pub fn from_cbor(cbor: &[u8]) -> Result<Foo, JsValue> {
+        let mut dec = Decoder::new(cbor);
+        dec.decode().map_err(|e| unimplemented!())
+    }
+
+    #[wasm_bindgen]
     pub fn as_json(&self) -> JsValue {
         serde_wasm_bindgen::to_value(self).unwrap()
     }
 
     #[wasm_bindgen]
-    pub fn from_json(json: &str) -> Foo {
-        serde_json::from_str(json).unwrap()
-    }
-
-    #[wasm_bindgen]
     pub fn as_cbor(&self) -> Vec<u8> {
-        unimplemented!()
+        let mut enc = Encoder::new(InfallibleVecEncoder::new(self.cbor_len(&mut ())));
+        enc.encode(self).unwrap();
+        enc.into_writer().into_inner()
     }
 
-    #[wasm_bindgen]
-    pub fn from_cbor(_cbor: &[u8]) -> Foo {
-        unimplemented!()
-    }
-
-    #[wasm_bindgen(getter)]
-    pub fn name(&self) -> String {
+    #[wasm_bindgen(getter, js_name = "name")]
+    pub fn get_name(&self) -> String {
         std::str::from_utf8(&self.name)
             .expect("invalid utf8 inside of name")
             .to_string()
+    }
+
+    #[wasm_bindgen(setter, js_name = "name")]
+    pub fn set_name(&mut self, name: &str) {
+        let min = core::cmp::min(name.len(), 8);
+        self.name[0..min].copy_from_slice(&name.as_bytes()[0..min]);
+        self.name[min..].fill(0);
     }
 
     #[wasm_bindgen(getter)]
@@ -144,9 +151,21 @@ impl Foo {
         self.data.to_vec()
     }
 
+    #[wasm_bindgen(setter)]
+    pub fn set_data(&mut self, data: &[u8]) {
+        let min = core::cmp::min(data.len(), 3);
+        self.data[0..min].copy_from_slice(&data[0..min]);
+        self.data[min..].fill(0);
+    }
+
     #[wasm_bindgen(getter)]
     pub fn ver(&self) -> u8 {
         self.ver
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_ver(&mut self, ver: u8) {
+        self.ver = ver;
     }
 }
 
@@ -159,5 +178,3 @@ pub fn foo_make() -> JsValue {
     })
     .unwrap()
 }
-
-
