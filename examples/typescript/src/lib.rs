@@ -83,8 +83,34 @@ extern "C" {
     #[wasm_bindgen(typescript_type = "IFoo")]
     pub type IFoo;
 }
-
 #[derive(Debug, Default, Encode, Decode, CborLen, Serialize, Deserialize)]
+#[wasm_bindgen]
+pub struct Bar {
+    #[n(0)]
+    id: u8,
+    #[n(1)]
+    foo: Foo,
+}
+
+#[wasm_bindgen]
+impl Bar {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Bar {
+        Bar::default()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn foo(&self) -> Foo {
+        self.foo.clone()
+    }
+
+    #[wasm_bindgen(setter, js_name = "foo")]
+    pub fn set_foo(&mut self, foo: Foo) {
+        self.foo = foo;
+    }
+}
+
+#[derive(Debug, Default, Clone, Encode, Decode, CborLen, Serialize, Deserialize)]
 #[wasm_bindgen]
 pub struct Foo {
     // TODO String not supported.

@@ -64,6 +64,24 @@
             enc.encode(self).unwrap();
             enc.into_writer().into_inner()
         }
+
+        {%- for member in data.members -%}
+
+            {{ member | wasm_member() }}
+        {%- endfor -%}
+
+    }
+{%- endmacro -%}
+
+{%- macro wasm_setter_getter_str(name) -%}
+    {%- set member = name | rename(case="lowerCamelCase") -%}
+    {%- set method = name | rename(case="fn") -%}
+    #[wasm_bindgen(getter, js_name="{{member}}")]
+    pub fn {{method}}(&self) -> String {
+        std::str::from_utf8(&self.name)
+            .expect("invalid utf8 inside of name")
+            .to_string()
+
     }
 {%- endmacro -%}
 

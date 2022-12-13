@@ -1,6 +1,6 @@
 use crate::ivt::ConstrainedType;
 use crate::{LinkedArray, LinkedKeyVal, LinkedNode, Literal, ValidateError};
-use heck::{ToShoutySnakeCase, ToSnakeCase, ToUpperCamelCase};
+use heck::{ToLowerCamelCase, ToShoutySnakeCase, ToSnakeCase, ToUpperCamelCase};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use serde_json::{from_value, to_value};
@@ -27,6 +27,7 @@ lazy_static! {
         tera.register_filter("literal", filter_literal);
         tera.register_filter("nodes", filter_nodes);
         tera.register_filter("fn_attr", filter_fn_attr);
+        tera.register_filter("wasm_member", filter_wasm_member);
         tera
     };
 }
@@ -192,6 +193,14 @@ fn to_upper_camel_case(val: &str, lang: Language, prefix: Option<String>) -> Str
     }
 }
 
+fn to_lower_camel_case(val: &str, lang: Language, prefix: Option<String>) -> String {
+    match (lang, prefix) {
+        (Language::C, None) => val.to_lower_camel_case(),
+        (Language::C, Some(prefix)) => format!("{}{}", prefix, val).to_lower_camel_case(),
+        (_, _) => val.to_lower_camel_case(),
+    }
+}
+
 fn caseify(s: &str, case: &str, opts: &HashMap<String, Value>) -> Result<String> {
     let (lang, pre) = opts
         .get("options")
@@ -213,6 +222,8 @@ fn caseify(s: &str, case: &str, opts: &HashMap<String, Value>) -> Result<String>
         Ok(to_fn_case(s, verb, lang, pre))
     } else if case == "enum" || case == "const" || case == "define" {
         Ok(to_shouty_snake_case(s, lang, pre))
+    } else if case == "lowerCamelCase" {
+        Ok(to_lower_camel_case(s, lang, pre))
     } else {
         Err(TeraError::msg(format!("unsupported rename {}", case)))
     }
@@ -375,5 +386,159 @@ fn filter_fn_attr(val: &Value, _map: &HashMap<String, Value>) -> Result<Value> {
         Language::C => Ok(fn_attr!("C")),
         Language::Rust => Ok(fn_attr!("RUST")),
         Language::Typescript => Ok(fn_attr!("TS")),
+    }
+}
+
+macro_rules! wasm_copyable_impl {
+    ($key:expr, $ty: literal) => {{
+        let camel = $key.to_lower_camel_case();
+        let snake = $key.to_snake_case();
+        let getter = format!("self.{}", snake);
+        let setter = format!("self.{} = val", snake);
+        format!(
+            "{} {}",
+            wasm_impl_getter!(camel, snake, $ty, getter),
+            wasm_impl_setter!(camel, snake, $ty, setter)
+        )
+    }};
+}
+
+macro_rules! wasm_clonable_impl {
+    ($key:expr, $ty: expr) => {{
+        let camel = $key.to_lower_camel_case();
+        let snake = $key.to_snake_case();
+        let other = $ty.to_upper_camel_case();
+        let getter = format!("self.{}.clone()", snake);
+        let setter = format!("self.{} = val", snake);
+        format!(
+            "{} {}",
+            wasm_impl_getter!(camel, snake, other, getter),
+            wasm_impl_setter!(camel, snake, other, setter)
+        )
+    }};
+}
+
+macro_rules! wasm_str_getter {
+    ($key:expr) => {
+        format!(
+            r#"
+            std::str::from_utf8(&self.{})
+                .expect("invalid utf8")
+                .to_string()
+            "#,
+            $key
+        )
+    };
+}
+
+macro_rules! wasm_str_setter {
+    ($key:expr, $len:expr) => {
+        format!(
+            r#"
+            let min = core::cmp::min(val.len(), {len});
+            self.{var}[0..min].copy_from_slice(&val.as_bytes()[0..min]);
+            self.{var}[min..].fill(0);
+            "#,
+            len = $len,
+            var = $key
+        )
+    };
+}
+
+macro_rules! wasm_bytes_getter {
+    ($key:expr) => {
+        format!(r#"self.{var}.to_vec()"#, var = $key)
+    };
+}
+
+macro_rules! wasm_bytes_setter {
+    ($key:expr, $len:expr) => {
+        format!(
+            r#"
+            let min = core::cmp::min(val.len(), {len});
+            self.{var}[0..min].copy_from_slice(&val[0..min]);
+            self.{var}[min..].fill(0);
+            "#,
+            len = $len,
+            var = $key
+        )
+    };
+}
+
+macro_rules! wasm_str_impl {
+    ($key:expr, $len:expr) => {{
+        let camel = $key.to_lower_camel_case();
+        let snake = $key.to_snake_case();
+        let getter = wasm_str_getter!(snake);
+        let setter = wasm_str_setter!(snake, $len);
+        format!(
+            "{} {}",
+            wasm_impl_getter!(camel, snake, "String", getter),
+            wasm_impl_setter!(camel, snake, "&str", setter)
+        )
+    }};
+}
+
+macro_rules! wasm_bytes_impl {
+    ($key:expr, $len:expr) => {{
+        let camel = $key.to_lower_camel_case();
+        let snake = $key.to_snake_case();
+        let getter = wasm_bytes_getter!(snake);
+        let setter = wasm_bytes_setter!(snake, $len);
+        format!(
+            "{} {}",
+            wasm_impl_getter!(camel, snake, "Vec<u8>", getter),
+            wasm_impl_setter!(camel, snake, "&[u8]", setter)
+        )
+    }};
+}
+
+macro_rules! wasm_impl_getter {
+    ($camel:expr, $snake:expr, $ty:literal, $getter:expr) => {{
+        let exp = $ty;
+        wasm_impl_getter!($camel, $snake, exp, $getter)
+    }};
+    ($camel:expr, $snake:expr, $ty:expr, $getter:expr) => {
+        format!(
+            r#"#[wasm_bindgen(getter, js_name={})] pub fn {}(&self) -> {} {{ {} }}"#,
+            $camel, $snake, $ty, $getter
+        )
+    };
+}
+
+macro_rules! wasm_impl_setter {
+    ($camel:expr, $snake:expr, $ty:literal, $setter:expr) => {{
+        let exp = $ty;
+        wasm_impl_setter!($camel, $snake, exp, $setter)
+    }};
+    ($camel:expr, $snake:expr, $ty:expr, $setter:expr) => {
+        format!(
+            r#"#[wasm_bindgen(setter, js_name={})] pub fn set_{}(&mut self, val: {}) {{ {} }}"#,
+            $camel, $snake, $ty, $setter
+        )
+    };
+}
+
+fn filter_wasm_member(val: &Value, _map: &HashMap<String, Value>) -> Result<Value> {
+    use crate::ivt::ConstrainedType::*;
+    use LinkedNode::*;
+    let LinkedKeyVal(key, val) = from_value::<LinkedKeyVal>(val.clone())?;
+    match val {
+        ConstrainedType(U8) => Ok(Value::String(wasm_copyable_impl!(key, "u8"))),
+        ConstrainedType(I8) => Ok(Value::String(wasm_copyable_impl!(key, "i8"))),
+        ConstrainedType(U16) => Ok(Value::String(wasm_copyable_impl!(key, "u16"))),
+        ConstrainedType(I16) => Ok(Value::String(wasm_copyable_impl!(key, "i16"))),
+        ConstrainedType(U32) => Ok(Value::String(wasm_copyable_impl!(key, "u32"))),
+        ConstrainedType(I32) => Ok(Value::String(wasm_copyable_impl!(key, "i32"))),
+        ConstrainedType(U64) => Ok(Value::String(wasm_copyable_impl!(key, "u64"))),
+        ConstrainedType(I64) => Ok(Value::String(wasm_copyable_impl!(key, "i64"))),
+        ConstrainedType(Bool) => Ok(Value::String(wasm_copyable_impl!(key, "bool"))),
+        ConstrainedType(Str(len)) => Ok(Value::String(wasm_str_impl!(key, len))),
+        ForeignStruct(s) => Ok(Value::String(wasm_clonable_impl!(key, s))),
+        Array(LinkedArray { ty, len }) => match *ty {
+            ConstrainedType(U8) => Ok(Value::String(wasm_bytes_impl!(key, len))),
+            _ => unimplemented!(),
+        },
+        _ => Ok(Value::String("".into())),
     }
 }
